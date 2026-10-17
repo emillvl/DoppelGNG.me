@@ -10,6 +10,7 @@ from .browser import Waterfox
 from .storage import Store, workspace_lock
 from .validation import local_validate, interaction_check
 from .reconstruct import public_url
+from .export import default_output, export_project
 
 
 def main():
@@ -24,11 +25,13 @@ def main():
     run.add_argument('--visual-tolerance', type=float, default=0.01)
     run.add_argument('--scenarios', help='JSON mapping page paths to read-only interaction scenarios')
     run.add_argument('--viewport', action='append', metavar='WIDTHxHEIGHT', help='Repeat for multiple exact browser content viewports (default: 1440x900 and 390x844)')
-    for command in ('status', 'validate'):
+    for command in ('status', 'validate', 'export'):
         child = sub.add_parser(command)
         child.add_argument('--output')
         if command == 'validate':
             child.add_argument('--port', type=int, default=4173)
+        if command == 'export':
+            child.add_argument('--destination', help='Delivery folder (default: <website>+copied)')
     args = parser.parse_args()
     if args.command == 'capture':
         if not args.authorized:
@@ -38,7 +41,7 @@ def main():
             parser.error('--url must be an HTTP(S) URL without embedded credentials')
         if not 0 <= args.visual_tolerance <= 1:
             parser.error('--visual-tolerance must be between 0 and 1')
-        output = args.output or str(Path('.doppelgng') / (parts.netloc.replace(':', '_')))
+        output = args.output or str(default_output(args.url))
         scenarios = json.loads(Path(args.scenarios).read_text(encoding='utf-8')) if args.scenarios else None
         viewports = None
         if args.viewport:
@@ -56,6 +59,10 @@ def main():
             current = json.loads(Path('.doppelgng/current.json').read_text(encoding='utf-8'))
             output = str(Path(current['manifest']).parent)
         store = Store(output)
+        if args.command == 'export':
+            destination = export_project(store, args.destination)
+            print(json.dumps({'project': str(destination), 'start': 'npm run dev', 'status': store.data['status']}, indent=2))
+            return 0
         if args.command == 'validate':
             store.data['status'] = 'validating'
             store.save()

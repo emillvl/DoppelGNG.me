@@ -18,7 +18,7 @@ from .discovery import sitemap_pages
 from .reconstruct import reconstruct, public_url
 from .resources import html_process
 from .storage import Store, atomic_json, now
-from .validation import record_baseline, local_validate, interaction_check
+from .validation import record_baseline, local_validate, interaction_check, snapshot
 
 
 class Preview:
@@ -167,6 +167,11 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 def capture_interaction_resources(events):
                     added = self.archive.closure(self.archive.ingest(events))
                     page['resources'] = list(dict.fromkeys([*page['resources'], *added]))
+                    expanded_links = self._extract_links(BeautifulSoup(browser.driver.page_source, 'html.parser'), browser.driver.current_url)
+                    links.extend(link for link in expanded_links if link not in links)
+                    page['links'] = links
+                    for link in expanded_links:
+                        store.page(link)
                     reconstruct(store, added)
                 actions = interaction_check(browser, url, local_url, directory, scenarios.get(urlsplit(url).path, []), capture_interaction_resources)
                 validation['interactions'] = actions
@@ -191,6 +196,39 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
 
 
 def navigation_validation(store, browser, preview):
+    def link_for(destination):
+        def locate():
+            return browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]&&!a.closest("[inert]")&&getComputedStyle(a).display!=="none"&&getComputedStyle(a).visibility!=="hidden");', destination)
+        anchor = locate()
+        if anchor is None:
+            # Scroll-activated navigation is intentionally inert at page entry.
+            from .validation import scroll
+            scroll(browser, 0.5)
+            anchor = locate()
+        if anchor is None:
+            # Replay already-verified disclosure scenarios to expose links that
+            # do not exist until the menu or panel has been opened.
+            for interaction in page.get('validation', {}).get('interactions', []):
+                scenario = interaction.get('scenario')
+                if not interaction.get('passed') or not scenario:
+                    continue
+                from selenium.webdriver.common.by import By
+                element = browser.driver.find_element(By.CSS_SELECTOR, scenario['selector'])
+                if scenario['action'] == 'hover':
+                    from selenium.webdriver import ActionChains
+                    ActionChains(browser.driver).move_to_element(element).perform()
+                else:
+                    element.click()
+                browser.settle()
+                anchor = locate()
+                if anchor is not None:
+                    break
+        if anchor is None:
+            raise RuntimeError(f'No available navigation link in the tested states: {destination}')
+        browser.driver.execute_script('arguments[0].scrollIntoView({block:"center"}); arguments[0].focus({preventScroll:true});', anchor)
+        time.sleep(0.5)
+        return anchor
+
     checks = []
     for url, page in list(store.data['pages'].items()):
         if page.get('kind') != 'page' or page['state'] not in ('validated', 'complete'):
@@ -202,7 +240,13 @@ def navigation_validation(store, browser, preview):
         # edge separately to exercise client-side routers as well as refresh.
         anchors = browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]"),a=>({href:a.href,text:a.innerText}));')
         unique = list(dict.fromkeys(item['href'] for item in anchors if item['href'].startswith(preview.origin + '/')))
+        for link in page['links']:
+            destination = preview.origin + public_url(link, store.data['target'])
+            if destination.split('#')[0] not in {item.split('#')[0] for item in unique}:
+                unique.append(destination)
+        print(f'[integration] {url} ({len(unique)} internal links)', flush=True)
         for destination in unique:
+            event_start = len(browser.bidi.events)
             parts = urlsplit(destination)
             source_url = store.data['target'].rstrip('/') + parts.path
             target_page = next((p for u, p in store.data['pages'].items() if urlsplit(u).path.rstrip('/') == parts.path.rstrip('/')), None)
@@ -210,30 +254,33 @@ def navigation_validation(store, browser, preview):
             result = {'from': url, 'to': destination, 'http_status': response.status_code, 'passed': response.status_code == 200}
             if parts.fragment:
                 browser.navigate(local_url)
-                anchor = browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]);', destination)
-                if anchor:
-                    browser.driver.execute_script('arguments[0].scrollIntoView({block:"center"})', anchor)
-                    try:
+                try:
+                    anchor = link_for(destination)
+                    if anchor:
                         anchor.click()
                         browser.settle()
                         time.sleep(0.7)
                         result['anchor_exists'] = browser.driver.execute_script('return !!document.getElementById(arguments[0])', parts.fragment)
                         result['passed'] &= result['anchor_exists']
-                    except Exception as error:
-                        result['passed'] = False
-                        result['error'] = str(error)
+                        result['anchor_reached'] = urlsplit(browser.driver.current_url).fragment == parts.fragment
+                        result['passed'] &= result['anchor_reached']
+                except Exception as error:
+                    result['passed'] = False
+                    result['error'] = str(error)
             elif target_page and target_page.get('kind') == 'page':
                 browser.navigate(local_url)
-                anchor = browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]);', destination)
                 try:
-                    browser.driver.execute_script('arguments[0].scrollIntoView({block:"center"})', anchor)
-                    time.sleep(0.5)
+                    anchor = link_for(destination)
                     anchor.click()
                     browser.settle()
                     result['rendered_title'] = browser.driver.title
                     result['passed'] &= browser.driver.title == target_page.get('title')
                     result['route_reached'] = urlsplit(browser.driver.current_url).path.rstrip('/') == parts.path.rstrip('/')
                     result['passed'] &= result['route_reached']
+                    baseline = json.loads((store.artifact_dir(target_page['url']) / 'baseline.json').read_text(encoding='utf-8'))[0]['snapshot']
+                    reached = snapshot(browser)
+                    result['content_passed'] = reached['text'] == baseline['text'] and reached['headings'] == baseline['headings'] and not reached['brokenImages']
+                    result['passed'] &= result['content_passed']
                     browser.driver.refresh()
                     browser.settle()
                     result['refresh_passed'] = browser.driver.title == target_page.get('title')
@@ -241,6 +288,13 @@ def navigation_validation(store, browser, preview):
                 except Exception as error:
                     result['passed'] = False
                     result['error'] = str(error)
+            browser_failures = []
+            for event in browser.bidi.events[event_start:]:
+                params = event.get('params', {})
+                if event.get('method') == 'network.fetchError' or (event.get('method') == 'log.entryAdded' and params.get('level') == 'error') or (event.get('method') == 'network.responseCompleted' and params['response']['status'] >= 400):
+                    browser_failures.append({'method': event['method'], 'url': params.get('response', params.get('request', {})).get('url'), 'message': params.get('text', params.get('errorText')), 'status': params.get('response', {}).get('status')})
+            result['browser_failures'] = browser_failures
+            result['passed'] &= not browser_failures
             checks.append(result)
     store.data['integration'] = {'checked_at': now(), 'passed': all(check['passed'] for check in checks), 'links': checks}
     for page in store.data['pages'].values():

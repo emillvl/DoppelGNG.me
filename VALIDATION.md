@@ -11,12 +11,16 @@ This file contains factual milestone evidence. Full captured website data and br
 
 ## Reusable pipeline milestone
 
-- Implementation regression suite: **21 Python tests and 2 Node HTTP tests passed**.
+- Implementation regression suite: **24 Python tests and 2 Node HTTP tests passed**.
 - Independent owned regression website: **3 HTML pages and 1 download completed**, with 9 captured resources.
 - The regression site exercises nested routes, a JavaScript-generated route, captured JSON requests, CSS imports and relative assets, a downloadable binary, a menu disclosure, and a native details control.
 - Desktop 1440×900 and mobile 390×844 screenshots were executed at top, middle, and bottom positions. All 18 comparisons passed.
 - Individual page validation, download byte equality, navigation clicks, route refresh, and cross-page integration passed.
 - A second regression run using the saved baselines also completed successfully.
+- Expanded independent regression: **4 HTML pages and 1 download completed**, with 10 resources and 24 passing desktop/mobile screenshot comparisons. The additional page is discoverable only after opening a menu; its route was discovered, reconstructed, and reached by an actual navigation click.
+- Expanded cross-page regression: **11 internal links passed**, including anchors, route content, nested-route refresh, interaction-revealed navigation, and browser-error checks.
+- Standalone generated project and exported `website+copied` project: `npm install` and `npm run dev` succeeded. Every served resource matched its recorded SHA256 (9 resources for the first project, 10 for the expanded export).
+- Setup replay with pinned dependencies succeeded. Completed captures resumed without re-extracting validated pages.
 - Real-site integration against the user-owned initial target remains in progress at this milestone. An individual-page pass is not a whole-site completion claim.
 
 ## Completion rules

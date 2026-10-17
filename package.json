@@ -10,6 +10,7 @@
     "crawl": "node scripts/python.mjs -m doppelgng capture",
     "validate": "node scripts/python.mjs -m doppelgng validate",
     "status": "node scripts/python.mjs -m doppelgng status",
+    "export": "node scripts/python.mjs -m doppelgng export",
     "dev": "node server.mjs",
     "test": "node scripts/python.mjs -m unittest discover -s tests -v && node --test tests/server.test.mjs"
   }
