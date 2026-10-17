@@ -1,6 +1,8 @@
 .venv/
 .tools/
 .doppelgng/
+*+copied/
+*+copied.partial/
 node_modules/
 dist/
 build/
