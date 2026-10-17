@@ -1,0 +1,14 @@
+.venv/
+.tools/
+.doppelgng/
+node_modules/
+dist/
+build/
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+

@@ -1,0 +1,8 @@
+requests>=2.32,<3
+beautifulsoup4>=4.12,<5
+psutil>=5.9,<8
+selenium>=4.28,<5
+Pillow>=11,<13
+tinycss2>=1.4,<2
+websocket-client>=1.8,<2
+
