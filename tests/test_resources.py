@@ -20,9 +20,35 @@ class ResourceTests(unittest.TestCase):
         urls, _ = html_process(text, 'https://a.test/')
         self.assertEqual(set(urls), {'https://a.test/sub/x.css', 'https://a.test/sub/a.webp', 'https://a.test/sub/b.webp', 'https://a.test/sub/bg.svg', 'https://a.test/sub/a.js'})
 
-    def test_js_literal_modules_workers_and_assets(self):
+    def test_js_modules_are_static_but_asset_strings_need_request_evidence(self):
         urls, _ = js_process('import x from "./x.js"; import("./lazy.mjs"); new URL("./worker.js", import.meta.url); fetch("/api/items"); const logo="/a.svg";', 'https://a.test/js/main.js')
-        self.assertEqual(set(urls), {'https://a.test/js/x.js', 'https://a.test/js/lazy.mjs', 'https://a.test/js/worker.js', 'https://a.test/a.svg'})
+        self.assertEqual(set(urls), {'https://a.test/js/x.js', 'https://a.test/js/lazy.mjs', 'https://a.test/js/worker.js'})
+
+    def test_split_url_fragments_are_neither_downloaded_nor_rewritten(self):
+        text = 'const parts=["https://cdn.test/managed/", "/payload.js"]; const src=parts[0]+"version-1"+parts[1];'
+        urls, output = js_process(text, 'https://cdn.test/tag/loader.js', lambda _: '/invented-local-file', known_urls={'https://cdn.test/managed/version-1/payload.js'})
+        self.assertEqual(urls, [])
+        self.assertEqual(output, text)
+
+    def test_computed_import_and_worker_prefixes_are_preserved(self):
+        text = 'import("./chunks/"+name+".js"); new Worker("./workers/"+name+".js"); new URL("./files/"+name+".js",import.meta.url);'
+        urls, output = js_process(text, 'https://a.test/app.js', lambda _: '/incorrect-prefix')
+        self.assertEqual(urls, [])
+        self.assertEqual(output, text)
+
+    def test_observed_full_url_literals_are_rewritten_without_new_downloads(self):
+        text = 'const logo="https://cdn.test/logo.svg"; const unused="https://cdn.test/unseen.js";'
+        urls, output = js_process(text, 'https://a.test/app.js', lambda _: '/captured/logo.svg', known_urls={'https://cdn.test/logo.svg'})
+        self.assertEqual(urls, [])
+        self.assertIn('const logo="/captured/logo.svg"', output)
+        self.assertIn('const unused="https://cdn.test/unseen.js"', output)
+
+    def test_inline_scripts_use_observed_urls_and_preserve_split_fragments(self):
+        text = '<script>const logo="https://cdn.test/logo.svg";const suffix="/payload.js";</script>'
+        urls, output = html_process(text, 'https://a.test/', lambda _: '/captured/logo.svg', known_urls={'https://cdn.test/logo.svg'})
+        self.assertEqual(urls, [])
+        self.assertIn('const logo="/captured/logo.svg"', output)
+        self.assertIn('const suffix="/payload.js"', output)
 
     def test_url_parser_probes_and_unexecuted_services_are_not_downloads(self):
         urls, _ = js_process('new URL("https://тест");fetch("/delete-account");', 'https://a.test/polyfill.js')

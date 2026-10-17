@@ -70,31 +70,38 @@ def css_process(text, base, rewrite=None):
     return list(dict.fromkeys(dependencies)), tinycss2.serialize(tokens) if rewrite else text
 
 
-def js_process(text, base, rewrite=None):
+def js_process(text, base, rewrite=None, *, known_urls=()):
     dependencies = []
 
     def replace(match):
         value = match.group('module') or match.group('asset')
         expression = match.group(0)
+        # A literal at the start of a computed import/worker URL is not its
+        # complete destination. Preserve the expression until the browser
+        # observes the fully constructed request.
+        if match.group('module') and re.match(r'\s*(?:\+|\.|\[)', text[match.end():]):
+            return expression
         # A URL constructor can be a parser probe in a polyfill. A fetch literal
         # can be a service endpoint whose method/state is chosen at runtime.
         # Only executed requests establish these dependencies; never issue an
         # invented GET for an unexecuted application operation.
-        runtime_only = bool(re.search(r'\bfetch\s*\(', expression))
+        # Arbitrary strings can be URL pieces, templates, or unused code. They
+        # are never evidence that a request should be invented and downloaded.
+        runtime_only = match.group('asset') is not None or bool(re.search(r'\bfetch\s*\(', expression))
         if re.search(r'\bnew\s+URL\s*\(', expression):
-            runtime_only = not value.startswith(('./', '../')) or not re.search(r'\.[a-zA-Z0-9]{1,8}(?:\?|$)', value)
+            runtime_only = not value.startswith(('./', '../')) or not re.search(r'\.[a-zA-Z0-9]{1,8}(?:\?|$)', value) or not re.match(r'\s*,\s*import\.meta\.url\s*\)', text[match.end():])
         # Bare module specifiers need the original import map or build runtime.
         if not value.startswith(('/', './', '../', 'http://', 'https://')):
             return match.group(0)
         url = absolute(value, base)
         if url and not runtime_only:
             dependencies.append(url)
-        return expression.replace(value, rewrite(url)) if rewrite and url and not runtime_only else expression
+        return expression.replace(value, rewrite(url)) if rewrite and url and (not runtime_only or url in known_urls) else expression
     result = JS_REFERENCES.sub(replace, text)
     return list(dict.fromkeys(dependencies)), result
 
 
-def html_process(text, base, rewrite=None):
+def html_process(text, base, rewrite=None, *, known_urls=()):
     soup = BeautifulSoup(text, 'html.parser')
     base_tag = soup.find('base', href=True)
     effective_base = urljoin(base, base_tag['href']) if base_tag else base
@@ -132,7 +139,7 @@ def html_process(text, base, rewrite=None):
             if rewrite:
                 tag.string = new
         if tag.name == 'script' and tag.string and tag.get('type', '') in ('', 'module', 'text/javascript', 'application/javascript'):
-            found, new = js_process(str(tag.string), effective_base, rewrite)
+            found, new = js_process(str(tag.string), effective_base, rewrite, known_urls=known_urls)
             dependencies.extend(found)
             if rewrite:
                 tag.string = new
@@ -146,12 +153,12 @@ def html_process(text, base, rewrite=None):
     return list(dict.fromkeys(dependencies)), str(soup) if rewrite else text
 
 
-def process(text, content_type, base, rewrite=None):
+def process(text, content_type, base, rewrite=None, *, known_urls=()):
     mime = content_type.lower()
     if 'html' in mime:
-        return html_process(text, base, rewrite)
+        return html_process(text, base, rewrite, known_urls=known_urls)
     if 'css' in mime:
         return css_process(text, base, rewrite)
     if 'javascript' in mime or urlsplit(base).path.endswith(('.js', '.mjs')):
-        return js_process(text, base, rewrite)
+        return js_process(text, base, rewrite, known_urls=known_urls)
     return [], text

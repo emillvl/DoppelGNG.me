@@ -170,9 +170,12 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 page['links'] = links
                 dom_dependencies, _ = html_process(rendered, meta['url'])
                 observed.extend(self.archive.ingest(browser.bidi.events[start:]))
-                page['resources'] = self.archive.closure([url, *dom_dependencies, *observed])
+                try:
+                    page['resources'] = self.archive.closure([url, *dom_dependencies, *observed])
+                finally:
+                    # Keep request evidence even when dependency extraction fails.
+                    (directory / 'network-original.json').write_text(json.dumps(sanitized_events(browser.bidi.events[start:]), ensure_ascii=False, indent=2), encoding='utf-8')
                 page['state'] = 'extracted'
-                (directory / 'network-original.json').write_text(json.dumps(sanitized_events(browser.bidi.events[start:]), ensure_ascii=False, indent=2), encoding='utf-8')
                 store.save()
                 reconstruct(store, page['resources'])
                 broken = store.verify(page['resources'])

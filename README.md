@@ -92,7 +92,7 @@ Each capture contains `manifest.json`, untouched content-addressed `raw/` respon
 
 A page is first marked `validated` after its individual checks pass. It becomes `complete` only after cross-page integration passes. A failed extraction or validation stops the crawl and leaves an explicit incomplete checkpoint. Reports from the original crawler alone are not completion evidence.
 
-The product supports reusable frontend capture, not recovery of arbitrary backend source. Login flows, payments, mutations, unexercised application states, WebSockets, live streaming, DRM, and unavailable authenticated services are not proven by a visual match. JavaScript discovery combines literal module/resource references with actual browser network traffic; computed routes and hidden interactions may need scenarios. Automatic runtime provisioning is Windows x64 at present. No third-party website is authorized merely because the tool can access it.
+The product supports reusable frontend capture, not recovery of arbitrary backend source. Login flows, payments, mutations, unexercised application states, WebSockets, live streaming, DRM, and unavailable authenticated services are not proven by a visual match. JavaScript discovery combines explicit module/worker references with actual browser network traffic. Arbitrary URL-like strings and computed URL fragments are not downloaded as invented dependencies; observed complete asset URLs can be rewritten for replay. Computed routes and hidden interactions may need scenarios. Automatic runtime provisioning is Windows x64 at present. No third-party website is authorized merely because the tool can access it.
 
 ## Architecture and integration evidence
 

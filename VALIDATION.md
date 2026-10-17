@@ -62,6 +62,16 @@ This file contains factual milestone evidence. Full captured website data and br
 - Suppressed the upstream crawler's banners, checkpoint chatter, findings, and unconditional completion report in all modes. DoppelGNG.me retains its own extraction, verification, navigation progress, final result, and errors.
 - **47 Python tests and 2 Node HTTP tests passed**. A real inherited crawl loop with a simulated extraction failure printed only branded product progress, propagated the failure, retained an incomplete manifest, and saved its internal checkpoint without announcing completion.
 
+## Computed resource URL regression
+
+- Diagnosed the reported post-copy failure from the existing captured resources. The saved advertising loader builds a versioned URL from a prefix and `/pubads_impl.js`; the previous parser interpreted that suffix as a standalone dependency and requested a nonexistent URL. The existing folder already contained copied website files when this extra dependency lookup failed.
+- Arbitrary JavaScript URL-like strings now require browser request evidence. Explicit imports and complete worker/module asset references remain discoverable; computed import prefixes and split URL fragments are preserved. Captured full URL literals can still be rewritten for local replay. Real missing imports and explicitly referenced external scripts still fail extraction.
+- **53 Python tests, 2 Node HTTP tests, and 33 pinned upstream tests passed** (**88 total**). All 53 Python tests additionally passed with the original external crawler override.
+- Reprocessed the exact loader script from the user's saved capture. The nonexistent `https://pagead2.googlesyndication.com/pubads_impl.js` was no longer inferred, and the original URL fragment remained unchanged. No downloaded website source was added to version control.
+- Full browser regression with a script URL assembled from separate prefix, version, and filename strings completed **4 HTML pages and 1 download**, archived **11 resources**, and passed **24 visual comparisons and all 11 navigation checks**. The original test server was then stopped; local replay executed the computed script successfully, with all observed HTTP requests confined to the local preview. No invented filename-only resource was requested, and stdout contained product progress without the upstream report.
+- All **126 protected files** (the existing manifest and raw/site files) retained their original hashes. The original preview selection was restored. The user's existing copied folder was retained without recapturing or overwriting it.
+- Rebuilt and verified the Windows distribution with the fixes: **118 application and runtime files**, **175,994,091 bytes**. SHA256: `7fccb626cbfdfa1d3ee376632757ab989f16f2b08f463ac5de5c02498e4b56ff`.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.
