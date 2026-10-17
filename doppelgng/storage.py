@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from contextlib import contextmanager
@@ -20,11 +22,52 @@ def digest(data: bytes):
     return hashlib.sha256(data).hexdigest()
 
 
+def digest_file(path, algorithm='sha256'):
+    hasher = hashlib.new(algorithm)
+    buffer = bytearray(1024 * 1024)
+    with Path(path).open('rb') as handle:
+        while size := handle.readinto(buffer):
+            hasher.update(memoryview(buffer)[:size])
+    return hasher.hexdigest()
+
+
 def atomic_json(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-    temporary.replace(path)
+    serialized = json.dumps(data, ensure_ascii=False, indent=2)
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent, prefix=path.name + '.', suffix='.tmp', delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(serialized)
+        except BaseException:
+            handle.close()
+            temporary.unlink(missing_ok=True)
+            raise
+    try:
+        for attempt in range(10):
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError as error:
+                if os.name != 'nt' or getattr(error, 'winerror', None) not in (5, 32, 33) or attempt == 9:
+                    raise
+                # Windows can deny replacement briefly while another writer renames.
+                time.sleep(0.01 * (attempt + 1))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+@contextmanager
+def incomplete_on_failure(store):
+    try:
+        yield
+    except BaseException as error:
+        message = str(error) or type(error).__name__
+        store.data.update(status='incomplete', error=message)
+        for page in store.data['pages'].values():
+            if page['state'] in ('extracting', 'validating'):
+                page.update(state='failed', error=message)
+        store.save()
+        raise
 
 
 @contextmanager
@@ -32,21 +75,38 @@ def workspace_lock(directory):
     root = Path(directory).resolve()
     root.mkdir(parents=True, exist_ok=True)
     lock = root / 'capture.lock'
-    if lock.exists():
-        owner = json.loads(lock.read_text(encoding='utf-8'))
-        if psutil.pid_exists(owner['pid']):
-            raise RuntimeError(f'Another capture or validation owns {root} (process {owner["pid"]})')
-        lock.unlink()
-    try:
-        descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
-    except FileExistsError as error:
-        raise RuntimeError(f'Another operation acquired the capture workspace: {root}') from error
-    with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
-        json.dump({'pid': os.getpid(), 'created_at': now()}, handle)
-    try:
-        yield
-    finally:
-        lock.unlink(missing_ok=True)
+    # Unlinking a stale PID file can remove a new owner's lock after a race.
+    # Keep the file; OS locks release on process exit.
+    with lock.open('a+', encoding='utf-8') as handle:
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            raise RuntimeError(f'Another capture or validation owns {root}') from error
+        try:
+            handle.seek(0)
+            try:
+                owner = json.load(handle)
+            except ValueError:
+                owner = {}
+            if isinstance(owner, dict) and owner.get('locking') != 'os' and isinstance(owner.get('pid'), int) and owner['pid'] > 0 and psutil.pid_exists(owner['pid']):
+                raise RuntimeError(f'Another capture or validation owns {root} (legacy process {owner["pid"]})')
+            handle.seek(0)
+            handle.truncate()
+            json.dump({'locking': 'os', 'pid': os.getpid(), 'created_at': now()}, handle)
+            handle.flush()
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 class Store:
@@ -92,19 +152,40 @@ class Store:
         content_hash = digest(body)
         extension = Path(urlsplit(url).path).suffix
         if not extension or len(extension) > 12 or not extension[1:].isalnum():
-            extension = '.html' if 'html' in headers.get('content-type', '') else '.bin'
+            extension = '.html' if 'html' in headers.get('content-type', '').lower() else '.bin'
         raw = f'raw/{content_hash}'
         local = f'site/files/{key}{extension}'
-        if not (self.root / raw).is_file():
+        previous = self.data['resources'].get(url)
+        if previous and (previous['sha256'] != content_hash or previous['status'] != status
+                         or previous['content_type'] != headers.get('content-type', 'application/octet-stream')
+                         or previous.get('headers', {}).get('content-disposition') != headers.get('content-disposition')):
+            self.invalidate([url])
+        raw_path = self.root / raw
+        if not raw_path.is_file() or digest_file(raw_path) != content_hash:
             self.write(raw, body)
-        self.write(local, body)
-        record = {'url': url, 'key': key, 'raw': raw, 'local': local, 'sha256': content_hash, 'local_sha256': content_hash, 'bytes': len(body), 'status': status, 'content_type': headers.get('content-type', 'application/octet-stream'), 'method': method, 'source': source, 'kind': kind, 'headers': {k: v for k, v in headers.items() if k in ('content-type', 'content-disposition', 'cache-control', 'vary')}, 'request_headers': request_headers or {}, 'dependencies': [], 'captured_at': now()}
+        keep_local = previous and previous['sha256'] == content_hash and previous['local'] == local and self.intact(previous, local=True)
+        if not keep_local:
+            self.write(local, body)
+        local_hash = previous['local_sha256'] if keep_local else content_hash
+        record = {'url': url, 'key': key, 'raw': raw, 'local': local, 'sha256': content_hash, 'local_sha256': local_hash, 'bytes': len(body), 'status': status, 'content_type': headers.get('content-type', 'application/octet-stream'), 'method': method, 'source': source, 'kind': kind, 'headers': {k: v for k, v in headers.items() if k in ('content-type', 'content-disposition', 'cache-control', 'vary')}, 'request_headers': request_headers or {}, 'dependencies': previous.get('dependencies', []) if keep_local else [], 'captured_at': now()}
         self.data['resources'][url] = record
         return record
 
+    def invalidate(self, urls):
+        changed = set(urls)
+        if not changed:
+            return
+        for page in self.data['pages'].values():
+            if page['state'] in ('validated', 'complete', 'download_validated') and changed.intersection(page['resources']):
+                page['state'] = 'reconstructed'
+                page['validation'].update(passed=False, stale=True)
+                self.data['status'] = 'incomplete'
+                if 'integration' in self.data:
+                    self.data['integration'].update(passed=False, stale=True)
+
     def intact(self, record, local=False):
         path = self.root / record['local' if local else 'raw']
-        return path.is_file() and digest(path.read_bytes()) == record['local_sha256' if local else 'sha256']
+        return path.is_file() and digest_file(path) == record['local_sha256' if local else 'sha256']
 
     def verify(self, urls):
         return [url for url in urls if url not in self.data['resources'] or not self.intact(self.data['resources'][url]) or not self.intact(self.data['resources'][url], local=True)]

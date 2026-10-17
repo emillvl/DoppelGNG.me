@@ -19,6 +19,10 @@ class DependencyEvidenceTests(unittest.TestCase):
         self.browser = SimpleNamespace(driver=SimpleNamespace(execute_script=lambda *_: 'test browser'))
         self.archive = Archive(self.store, self.browser)
         self.addCleanup(self.archive.session.close)
+        # Synthetic public asset names have no real DNS/network dependency.
+        dns = patch('doppelgng.network.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.215.14', 443))])
+        dns.start()
+        self.addCleanup(dns.stop)
 
     def test_computed_asset_closure_uses_observed_full_url_without_inventing_requests(self):
         loader = 'https://cdn.test/tag/loader.js'
@@ -49,3 +53,15 @@ class DependencyEvidenceTests(unittest.TestCase):
                     with self.assertRaisesRegex(ExtractionFailure, '404 Not Found'):
                         self.archive.closure([parent])
                 self.assertEqual(request.call_args.args[0], missing)
+
+    def test_identical_browser_body_with_changed_response_metadata_invalidates_pass(self):
+        url = 'https://app.test/data'
+        self.store.resource(url, b'unchanged', headers={'content-type': 'text/plain'})
+        page = self.store.page(self.store.data['target'])
+        page.update(state='complete', resources=[url], validation={'passed': True})
+        self.browser.bidi = SimpleNamespace(body=lambda _: b'unchanged')
+        event = {'method': 'network.responseCompleted', 'params': {'request': {'request': 'metadata-change', 'method': 'GET'}, 'response': {'url': url, 'status': 200, 'headers': [{'name': 'Content-Type', 'value': {'type': 'string', 'value': 'text/html'}}]}}}
+        self.archive.ingest([event])
+        self.assertEqual(self.store.data['resources'][url]['content_type'], 'text/html')
+        self.assertFalse(page['validation']['passed'])
+        self.assertEqual(page['state'], 'reconstructed')

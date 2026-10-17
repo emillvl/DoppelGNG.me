@@ -6,7 +6,7 @@ import os
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from doppelgng.archive import ExtractionFailure
 from doppelgng.crawler import load_crawler
@@ -27,7 +27,9 @@ class PipelineGates(unittest.TestCase):
 
     def make_crawler(self, **options):
         options.setdefault('quiet', True)
-        return build_adapter(self.module, self.store, self.browser, self.preview, viewports=[[1440, 900]], allowed_ratio=0.01, scenarios={}, **options)
+        crawler = build_adapter(self.module, self.store, self.browser, self.preview, viewports=[[1440, 900]], allowed_ratio=0.01, scenarios={}, **options)
+        self.addCleanup(crawler.archive.session.close)
+        return crawler
 
     def test_failed_current_page_is_retried_before_new_pages(self):
         first = self.store.page('https://example.test/')
@@ -68,8 +70,9 @@ class PipelineGates(unittest.TestCase):
         self.assertTrue(crawler._can_fetch('https://example.test/private/'))
 
     def test_respect_robots_loads_and_applies_real_rules(self):
-        response = SimpleNamespace(status_code=200, text='User-agent: *\nDisallow: /private/\n')
-        with patch('requests.get', return_value=response) as request, patch('doppelgng.pipeline.sitemap_pages', return_value=([], [])):
+        response = MagicMock(status_code=200, text='User-agent: *\nDisallow: /private/\n')
+        response.__enter__.return_value = response
+        with patch.object(self.crawler.archive.session, 'get', return_value=response) as request, patch('doppelgng.pipeline.sitemap_pages', return_value=([], [])):
             self.crawler._load_robots()
         self.assertEqual(request.call_count, 1)
         self.assertEqual(request.call_args.args[0], 'https://example.test/robots.txt')
@@ -127,3 +130,52 @@ class PipelineGates(unittest.TestCase):
         self.assertFalse(result['passed'])
         self.assertEqual(self.store.data['status'], 'incomplete')
         self.assertIn('not present', result['links'][0]['error'])
+
+    def navigation_result(self, reached, *, include_other_variant=False, final_url=None):
+        source = self.store.data['target']
+        target = source + 'item?variant=2'
+        destination = self.preview.origin + '/item?variant=2'
+        page = self.store.page(source)
+        page.update(state='validated', kind='page', links=[target])
+        if include_other_variant:
+            other = self.store.page(source + 'item?variant=1')
+            other.update(state='validated', kind='page', title='Variant one')
+            (self.store.artifact_dir(other['url']) / 'baseline.json').write_text(json.dumps([{'snapshot': {'text': 'one', 'headings': []}}]))
+        target_page = self.store.page(target)
+        target_page.update(state='validated', kind='page', title='Variant two')
+        if final_url:
+            target_page['final_url'] = final_url
+        (self.store.artifact_dir(target) / 'baseline.json').write_text(json.dumps([{'snapshot': {'text': 'two', 'headings': []}}]))
+        driver = SimpleNamespace(current_url='', title='Variant two', refresh=lambda: None)
+        def click():
+            driver.current_url = reached
+        anchor = SimpleNamespace(click=click)
+        def execute(script, *_args):
+            if '.find(a=>' in script:
+                return anchor
+            if 'a=>({href:a.href,text:a.innerText})' in script:
+                return [{'href': destination, 'text': 'Variant two'}]
+        driver.execute_script = execute
+        browser = SimpleNamespace(driver=driver, bidi=SimpleNamespace(events=[]), viewport=lambda *_: None, navigate=lambda url: setattr(driver, 'current_url', url), settle=lambda: None)
+        with patch('doppelgng.pipeline.requests.get', return_value=SimpleNamespace(status_code=200)), patch('doppelgng.pipeline.scroll'), patch('doppelgng.pipeline.time.sleep'), patch('doppelgng.pipeline.snapshot', return_value={'text': 'two', 'headings': [], 'brokenImages': []}):
+            result = navigation_validation(self.store, browser, self.preview, only_edges=[(source, destination)], quiet=True)
+        return result['links'][0]
+
+    def test_navigation_selects_the_matching_query_variant(self):
+        result = self.navigation_result(self.preview.origin + '/item?variant=2', include_other_variant=True)
+        self.assertTrue(result['passed'], result)
+
+    def test_crawl_scope_accepts_equivalent_default_port_without_expanding_origin(self):
+        self.assertTrue(self.crawler._same_domain('https://example.test:443/next'))
+        self.assertFalse(self.crawler._same_domain('https://example.test:444/next'))
+        self.assertFalse(self.crawler._same_domain('http://example.test/next'))
+
+    def test_navigation_accepts_the_recorded_same_origin_redirect_destination(self):
+        result = self.navigation_result(self.preview.origin + '/canonical?variant=2', final_url='https://example.test/canonical?variant=2')
+        self.assertTrue(result['passed'], result)
+
+    def test_navigation_cannot_pass_after_escaping_local_origin_or_dropping_query(self):
+        for reached in ('https://example.test/item?variant=2', self.preview.origin + '/item?variant=1'):
+            with self.subTest(reached=reached):
+                result = self.navigation_result(reached)
+                self.assertFalse(result['passed'], result)

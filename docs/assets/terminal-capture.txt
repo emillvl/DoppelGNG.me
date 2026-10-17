@@ -1,0 +1,29 @@
+$ node scripts/python.mjs -m doppelgng capture --url http://127.0.0.1:57682 --authorized --output .tools/documentation-2dbfkxhb/capture --port 57683 --scenarios tests/fixture-scenarios.json
+
+[doppelgng.me] Extracting http://127.0.0.1:57682/
+[doppelgng.me] Validating http://127.0.0.1:57682/ (7 resources)
+[doppelgng.me] Verified http://127.0.0.1:57682/
+[doppelgng.me] Extracting http://127.0.0.1:57682/nested
+[doppelgng.me] Validating http://127.0.0.1:57682/nested (8 resources)
+[doppelgng.me] Verified http://127.0.0.1:57682/nested
+[doppelgng.me] Extracting http://127.0.0.1:57682/download.bin
+[doppelgng.me] Extracting http://127.0.0.1:57682/dynamic/
+[doppelgng.me] Validating http://127.0.0.1:57682/dynamic/ (6 resources)
+[doppelgng.me] Verified http://127.0.0.1:57682/dynamic/
+[doppelgng.me] Extracting http://127.0.0.1:57682/menu-only/
+[doppelgng.me] Validating http://127.0.0.1:57682/menu-only/ (6 resources)
+[doppelgng.me] Verified http://127.0.0.1:57682/menu-only/
+[doppelgng.me] Extracting http://127.0.0.1:57682/nested/
+[doppelgng.me] Validating http://127.0.0.1:57682/nested/ (7 resources)
+[doppelgng.me] Verified http://127.0.0.1:57682/nested/
+[doppelgng.me] Checking navigation: http://127.0.0.1:57682/ (5 internal links)
+[doppelgng.me] Checking navigation: http://127.0.0.1:57682/nested (2 internal links)
+[doppelgng.me] Checking navigation: http://127.0.0.1:57682/dynamic/ (2 internal links)
+[doppelgng.me] Checking navigation: http://127.0.0.1:57682/menu-only/ (2 internal links)
+[doppelgng.me] Checking navigation: http://127.0.0.1:57682/nested/ (2 internal links)
+{
+  "status": "complete",
+  "pages": 6,
+  "resources": 13,
+  "manifest": "<workspace>\\.tools\\documentation-2dbfkxhb\\capture\\manifest.json"
+}

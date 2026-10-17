@@ -20,6 +20,14 @@ class ResourceTests(unittest.TestCase):
         urls, _ = html_process(text, 'https://a.test/')
         self.assertEqual(set(urls), {'https://a.test/sub/x.css', 'https://a.test/sub/a.webp', 'https://a.test/sub/b.webp', 'https://a.test/sub/bg.svg', 'https://a.test/sub/a.js'})
 
+    def test_other_scheme_navigation_does_not_become_an_uncaptured_local_route(self):
+        _, output = html_process('<a href="http://a.test/other">External origin</a>', 'https://a.test/', lambda _: '/not-captured')
+        self.assertIn('href="http://a.test/other"', output)
+
+    def test_equivalent_default_port_navigation_stays_local(self):
+        _, output = html_process('<a href="https://A.test:443/other">Same origin</a>', 'https://a.test/', lambda _: '/other')
+        self.assertIn('href="/other"', output)
+
     def test_js_modules_are_static_but_asset_strings_need_request_evidence(self):
         urls, _ = js_process('import x from "./x.js"; import("./lazy.mjs"); new URL("./worker.js", import.meta.url); fetch("/api/items"); const logo="/a.svg";', 'https://a.test/js/main.js')
         self.assertEqual(set(urls), {'https://a.test/js/x.js', 'https://a.test/js/lazy.mjs', 'https://a.test/js/worker.js'})

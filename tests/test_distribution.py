@@ -6,6 +6,7 @@ import unittest
 import zipfile
 
 from doppelgng.distribution import SOURCE_FILES, build_distribution
+from doppelgng.dependencies import ensure_crawler
 from test_runtime import make_runtime
 
 
@@ -15,6 +16,10 @@ class DistributionTests(unittest.TestCase):
             root = Path(temporary)
             for name in SOURCE_FILES:
                 (root / name).write_text('application source')
+            for name in ('docs/getting-started.md', 'docs/assets/terminal-capture.png', 'docs/assets/terminal-capture.txt'):
+                file = root / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b'documentation fixture')
             make_runtime(root)
             lock = json.loads((root / 'runtime-lock.json').read_text())
             lock['crawler'] = {'repository': 'https://github.com/emillvl/webcrawler.git', 'revision': 'a' * 40, 'files': {'webcrawler.py': hashlib.sha256(b'crawler').hexdigest()}}
@@ -22,6 +27,7 @@ class DistributionTests(unittest.TestCase):
             crawler = root / '.tools/webcrawler'
             crawler.mkdir()
             (crawler / 'webcrawler.py').write_bytes(b'crawler')
+            ensure_crawler(root)
             for name in ('waterfox-provenance.json', 'geckodriver-provenance.json'):
                 (root / '.tools' / name).write_text('{}')
             for name in ('.env', '.doppelgng/private-page.html', '.tools/waterfox-setup.exe', 'example.test/site/page.html', 'old.example.test+copied/site/page.html'):
@@ -34,6 +40,11 @@ class DistributionTests(unittest.TestCase):
                 self.assertIn('DoppelGNG.me/.tools/waterfox/core/xul.dll', names)
                 self.assertIn('DoppelGNG.me/.tools/webcrawler/webcrawler.py', names)
                 self.assertIn('DoppelGNG.me/THIRD_PARTY_NOTICES.md', names)
+                self.assertIn('DoppelGNG.me/LICENSE', names)
+                self.assertIn('DoppelGNG.me/CONTRIBUTING.md', names)
+                self.assertIn('DoppelGNG.me/docs/getting-started.md', names)
+                self.assertIn('DoppelGNG.me/docs/assets/terminal-capture.png', names)
+                self.assertIn('DoppelGNG.me/docs/assets/terminal-capture.txt', names)
                 self.assertFalse(any('private-page' in name or '/example.test/' in name or '+copied' in name or 'waterfox-setup.exe' in name or name.endswith('/.env') or '/.git/' in name for name in names))
                 manifest = json.loads(archive.read('DoppelGNG.me/bundle-manifest.json'))
                 for name, expected in manifest['files'].items():

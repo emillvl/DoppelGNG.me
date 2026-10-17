@@ -24,7 +24,14 @@ export function findResource(manifest, requestUrl, headers = {}) {
   if (exact) return exact;
   // Static export flight files use a request nonce; the body is a file at this path.
   const volatile = manifest.policy?.volatile_static_query ?? [];
-  return candidates.find(r => r.kind !== 'page' && !r.content_type.includes('json') && sortedQuery(new URL(r.url).search, volatile) === sortedQuery(requestUrl.search, volatile));
+  const staticVariant = candidates.find(r => r.kind !== 'page' && !r.content_type.includes('json') && sortedQuery(new URL(r.url).search, volatile) === sortedQuery(requestUrl.search, volatile));
+  if (staticVariant) return staticVariant;
+  // Redirect aliases can contain a document with no separate canonical record.
+  return resources.find(r => {
+    if (r.kind !== 'page' || r.method !== 'GET' || !r.final_url) return false;
+    const final = new URL(r.final_url);
+    return final.origin === original.origin && final.pathname === requestUrl.pathname && sortedQuery(final.search) === sortedQuery(requestUrl.search);
+  });
 }
 
 export function createPreviewServer(manifestPath) {
@@ -65,11 +72,25 @@ export function createPreviewServer(manifestPath) {
         failures.push({ method: request.method, url: request.url, status: 404 });
         return send(404, `Uncaptured resource: ${request.url}`);
       }
+      if (record.kind === 'page' && record.final_url) {
+        const final = new URL(record.final_url);
+        if (final.origin === new URL(manifest.target).origin && final.pathname + final.search !== url.pathname + url.search) {
+          response.writeHead(302, { Location: final.pathname + final.search });
+          return response.end();
+        }
+      }
       const file = path.resolve(root, record.local);
       const allowed = path.resolve(root, 'site') + path.sep;
       if (!file.startsWith(allowed) || !existsSync(file) || !realpathSync(file).startsWith(realpathSync(path.resolve(root, 'site')) + path.sep)) return send(404, 'Resource file is unavailable');
       const size = statSync(file).size;
       const headers = { 'Content-Type': record.content_type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes', 'X-Content-Type-Options': 'nosniff' };
+      const documentTypes = new Set(['text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/xml', 'application/xml']);
+      const contentType = record.content_type.split(';', 1)[0].trim().toLowerCase();
+      const originalOrigin = new URL(manifest.target).origin;
+      if (documentTypes.has(contentType) && [record.url, record.final_url].filter(Boolean).some(url => new URL(url).origin !== originalOrigin)) {
+        // Keep external documents isolated across iframe, object, embed, and redirects.
+        headers['Content-Security-Policy'] = 'sandbox allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-downloads allow-pointer-lock allow-presentation';
+      }
       if (record.headers?.['content-disposition']) headers['Content-Disposition'] = record.headers['content-disposition'];
       let start = 0, end = size - 1, status = record.status || 200;
       if (request.headers.range) {

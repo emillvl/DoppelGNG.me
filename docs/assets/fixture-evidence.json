@@ -1,0 +1,10 @@
+{
+  "target": "http://127.0.0.1:57682",
+  "status": "complete",
+  "pages": 6,
+  "resources": 13,
+  "visual_comparisons": 30,
+  "max_changed_pixel_ratio": 0.0,
+  "navigation_checks": 13,
+  "transcript_note": "Actual CLI output; workspace path replaced by <workspace>. Terminal panels rendered in Waterfox."
+}

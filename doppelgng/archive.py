@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import requests
 
 from .resources import absolute, process
+from .network import DestinationPolicy, capture_session, origin
 
 
 def headers(values):
@@ -20,7 +21,6 @@ def headers(values):
 
 
 def sanitized_events(events):
-    # Never persist session cookies or authorization headers in diagnostic logs.
     result = json.loads(json.dumps(events))
     for event in result:
         params = event.get('params', {})
@@ -40,7 +40,9 @@ class Archive:
         self.store = store
         self.browser = browser
         self.max_bytes = max_bytes
-        self.session = requests.Session()
+        authorized = store.data.get('policy', {}).get('authorized_resource_origins', [])
+        self.policy = DestinationPolicy(store.data['target'], authorized)
+        self.session = capture_session(store.data['target'], authorized)
         self.session.headers['User-Agent'] = browser.driver.execute_script('return navigator.userAgent')
         self.seen_requests = set()
 
@@ -55,14 +57,13 @@ class Archive:
             identifier = request['request']
             if not url or identifier in self.seen_requests or request['method'] not in ('GET', 'HEAD'):
                 continue
+            self.policy.address(url)
             self.seen_requests.add(identifier)
             if not 200 <= response['status'] < 300:
                 continue
             if request['method'] == 'HEAD':
-                # Routers use HEAD to check linked documents before fetching
-                # their route data. Archive the corresponding document so that
-                # this real browser dependency also works during local replay.
-                if urlsplit(url).netloc == urlsplit(self.store.data['target']).netloc:
+                # Router HEAD probes can reference documents not yet queued as pages.
+                if origin(url) == origin(self.store.data['target']):
                     record = self.retrieve(url)
                     record['head_observed'] = True
                     collected.append(url)
@@ -74,20 +75,21 @@ class Archive:
             except RuntimeError as error:
                 if 'no such network data' not in str(error):
                     raise
-                # Cached/speculative responses need not retain a protocol body.
-                # Re-fetch through the browser with the relevant request headers
-                # and explicitly record that provenance.
+                # Evicted bodies need a refetch with the observed representation headers.
                 if url in self.store.data['resources'] and self.store.intact(self.store.data['resources'][url]):
                     collected.append(url)
                     continue
                 meta, body = self.browser.source(url, safe_headers)
-                self.store.resource(url, body, status=meta['status'], headers=meta['headers'], source='waterfox-refetch-evicted-protocol-body', request_headers=safe_headers)
+                self.policy.address(meta['url'])
+                if len(body) > self.max_bytes:
+                    raise ExtractionFailure(f'Resource exceeds configured byte limit: {url}')
+                record = self.store.resource(url, body, status=meta['status'], headers=meta['headers'], source='waterfox-refetch-evicted-protocol-body', request_headers=safe_headers)
+                record['final_url'] = meta['url']
                 collected.append(url)
                 continue
             if body is None:
                 raise ExtractionFailure('This Waterfox version cannot archive response bodies; upgrade the private runtime')
-            # Some speculative HEAD/redirect/cache entries have no body. They must
-            # not replace an authentic document already in the archive.
+            # Empty speculative/cache entries must not replace stored document bodies.
             if not body and response.get('bodySize', 0) != 0:
                 continue
             if not body and url in self.store.data['resources']:
@@ -97,10 +99,14 @@ class Archive:
                 raise ExtractionFailure(f'Resource exceeds configured byte limit: {url}')
             previous = self.store.data['resources'].get(url)
             kind = previous['kind'] if previous else 'resource'
-            if previous and previous['sha256'] == __import__('hashlib').sha256(body).hexdigest():
+            observed_headers = headers(response.get('headers', []))
+            if (previous and previous['sha256'] == __import__('hashlib').sha256(body).hexdigest()
+                    and previous['status'] == response['status']
+                    and previous['content_type'] == observed_headers.get('content-type', 'application/octet-stream')
+                    and previous.get('headers', {}).get('content-disposition') == observed_headers.get('content-disposition')):
                 collected.append(url)
                 continue
-            self.store.resource(url, body, status=response['status'], headers=headers(response.get('headers', [])), source='waterfox-bidi', kind=kind, request_headers=safe_headers)
+            self.store.resource(url, body, status=response['status'], headers=observed_headers, source='waterfox-bidi', kind=kind, request_headers=safe_headers)
             collected.append(url)
         return list(dict.fromkeys(collected))
 
@@ -108,12 +114,12 @@ class Archive:
         existing = self.store.data['resources'].get(url)
         if existing and self.store.intact(existing) and (existing['bytes'] or existing.get('empty_verified')):
             return existing
+        self.policy.address(url)
         try:
             meta, body = self.browser.source(url)
             source = 'waterfox-fetch'
         except Exception as browser_error:
-            # Cross-origin CORS can prevent in-page fetch even for public assets.
-            # Preserve this provenance rather than claiming it was a browser body.
+            # CORS may block browser fetch; record native refetch provenance separately.
             try:
                 with self.session.get(url, timeout=40, stream=True, allow_redirects=True) as response:
                     response.raise_for_status()
@@ -131,6 +137,7 @@ class Archive:
                 raise ExtractionFailure(f'Cannot retrieve {url}: browser={browser_error}; refetch={error}') from error
         if len(body) > self.max_bytes:
             raise ExtractionFailure(f'Resource exceeds configured byte limit: {url}')
+        self.policy.address(meta['url'])
         record = self.store.resource(url, body, status=meta['status'], headers=meta['headers'], source=source)
         record['final_url'] = meta['url']
         record['empty_verified'] = not bool(body)
@@ -147,14 +154,14 @@ class Archive:
             visited.add(url)
             record = self.retrieve(url)
             result.append(url)
-            mime = record['content_type']
+            mime = record['content_type'].lower()
             if any(token in mime for token in ('html', 'css', 'javascript')) or urlsplit(url).path.endswith(('.js', '.mjs')):
                 raw = (self.store.root / record['raw']).read_bytes()
                 text = raw.decode('utf-8-sig')
                 dependencies, _ = process(text, mime, record.get('final_url', url))
                 record['dependencies'] = dependencies
                 queue.extend(dependencies)
-        # Reconstruction repairs local copies from verified originals next.
+        # Check raw bytes here; reconstruction repairs local copies afterward.
         broken = [url for url in result if not self.store.intact(self.store.data['resources'][url])]
         if broken:
             raise ExtractionFailure(f'Integrity check failed: {broken}')

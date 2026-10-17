@@ -1,4 +1,4 @@
-"""Pinned, project-local dependencies that never depend on a user's Desktop."""
+"""Download and verify the pinned crawler files."""
 from __future__ import annotations
 
 import hashlib
@@ -46,7 +46,8 @@ def ensure_crawler(root=PROJECT_ROOT, *, offline=False):
     root = Path(root).resolve()
     spec = runtime_lock(root)['crawler']
     target = root / '.tools' / 'webcrawler'
-    target.parent.mkdir(parents=True, exist_ok=True)
+    if not offline:
+        target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         errors = crawler_errors(target, spec)
         if errors:
@@ -74,6 +75,12 @@ def ensure_crawler(root=PROJECT_ROOT, *, offline=False):
     receipt = {'repository': spec['repository'], 'revision': spec['revision'], 'files': spec['files']}
     path = target / 'upstream.json'
     contents = json.dumps(receipt, indent=2) + '\n'
-    if not path.is_file() or path.read_text(encoding='utf-8') != contents:
+    try:
+        matches = path.is_file() and json.loads(path.read_text(encoding='utf-8')) == receipt
+    except ValueError:
+        matches = False
+    if offline and not matches:
+        raise RuntimeError('The cached crawler provenance is missing or altered. Run npm run setup to repair its metadata; offline verification made no changes.')
+    if not offline and not matches:
         path.write_text(contents, encoding='utf-8')
     return target

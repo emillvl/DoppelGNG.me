@@ -1,3 +1,3 @@
-"""Capture authentic frontend resources and verify their local reconstruction."""
+"""Website capture and local replay validation."""
 
 __version__ = "0.1.0"

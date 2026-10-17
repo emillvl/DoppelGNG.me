@@ -1,4 +1,4 @@
-"""Executed browser checks and screenshot comparison; no inferred pass states."""
+"""Compare browser snapshots, screenshots, and interaction states."""
 from __future__ import annotations
 
 import io
@@ -134,7 +134,7 @@ def local_validate(browser, url, local_url, directory, baselines, *, allowed_rat
 
 
 def interaction_check(browser, url, local_url, directory, configured=None, after_original=None):
-    """Only non-submitting, read-only interactions run on original pages."""
+    """Compare controls and disclosures, rejecting controls associated with forms."""
     browser.navigate(url)
     discovered = browser.driver.execute_script('''
         const selector=e=>{if(e.id)return '#'+CSS.escape(e.id); const p=[]; while(e&&e.nodeType===1){let n=1,s=e;while(s=s.previousElementSibling)if(s.tagName===e.tagName)n++;p.unshift(e.tagName.toLowerCase()+':nth-of-type('+n+')');e=e.parentElement;}return p.join('>');};

@@ -37,9 +37,38 @@ class CrawlerProvisioningTests(unittest.TestCase):
                 ensure_crawler(root)
             self.assertEqual((directory / 'webcrawler.py').read_text(), 'local changes')
 
+    def test_offline_verification_does_not_repair_or_create_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = self.make_cached(root)
+            ensure_crawler(root)
+            receipt = directory / 'upstream.json'
+            receipt.write_text('corrupted metadata')
+            with self.assertRaisesRegex(RuntimeError, 'provenance'):
+                ensure_crawler(root, offline=True)
+            self.assertEqual(receipt.read_text(), 'corrupted metadata')
+            receipt.unlink()
+            with self.assertRaisesRegex(RuntimeError, 'provenance'):
+                ensure_crawler(root, offline=True)
+            self.assertFalse(receipt.exists())
+
     def test_packaged_default_is_relative_to_the_project(self):
         with patch.dict('os.environ', {}, clear=True):
             self.assertEqual(default_crawler(Path('product')).parts[-3:], ('product', '.tools', 'webcrawler'))
+
+    def test_offline_provenance_accepts_equivalent_json_without_modifying_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = self.make_cached(root)
+            ensure_crawler(root)
+            receipt = directory / 'upstream.json'
+            value = json.loads(receipt.read_text())
+            contents = json.dumps(dict(reversed(list(value.items()))), separators=(',', ':'))
+            receipt.write_text(contents)
+            before = receipt.stat().st_mtime_ns
+            self.assertEqual(ensure_crawler(root, offline=True), directory)
+            self.assertEqual(receipt.read_text(), contents)
+            self.assertEqual(receipt.stat().st_mtime_ns, before)
 
     def test_offline_package_with_missing_crawler_does_not_clone(self):
         with tempfile.TemporaryDirectory() as temporary:

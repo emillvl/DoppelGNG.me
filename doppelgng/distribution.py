@@ -10,7 +10,7 @@ import zipfile
 from .bootstrap import verify_runtime
 from .dependencies import PROJECT_ROOT, ensure_crawler, hash_file, runtime_lock
 
-SOURCE_FILES = ('.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'README.md', 'THIRD_PARTY_NOTICES.md', 'requirements.txt', 'requirements.lock.txt', 'runtime-lock.json', 'server.mjs')
+SOURCE_FILES = ('.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'LICENSE', 'README.md', 'CONTRIBUTING.md', 'THIRD_PARTY_NOTICES.md', 'VALIDATION.md', 'COMPRESSION_REPORT.md', 'AUDIT_REPORT.md', 'POST_AUDIT_VERIFICATION.md', 'REAL_WORLD_TEST_EMILVALIYEV.md', 'requirements.txt', 'requirements.lock.txt', 'runtime-lock.json', 'server.mjs')
 
 
 def package_files(root=PROJECT_ROOT):
@@ -18,7 +18,7 @@ def package_files(root=PROJECT_ROOT):
     runtime = verify_runtime(root)
     crawler = ensure_crawler(root, offline=True)
     files = {name: root / name for name in SOURCE_FILES}
-    for directory, extensions in [('doppelgng', {'.py'}), ('scripts', {'.mjs'}), ('tests', {'.py', '.mjs', '.json'})]:
+    for directory, extensions in [('doppelgng', {'.py'}), ('scripts', {'.mjs', '.py'}), ('tests', {'.py', '.mjs', '.json'}), ('docs', {'.md', '.png', '.txt', '.json'})]:
         for file in (root / directory).rglob('*'):
             if file.is_file() and file.suffix in extensions and '__pycache__' not in file.parts:
                 files[file.relative_to(root).as_posix()] = file

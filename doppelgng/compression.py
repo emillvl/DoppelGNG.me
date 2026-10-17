@@ -42,7 +42,7 @@ def _storage(files):
 
 
 def compress_runtime(root):
-    # Import here so bootstrap can call this after provisioning the manifest.
+    # Bootstrap imports this module before provisioning the manifest.
     from .bootstrap import verify_runtime
 
     root = Path(root).resolve()
@@ -72,7 +72,7 @@ def compress_runtime(root):
     print('Applying LZX to the private browser files', flush=True)
     compact = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/compact.exe'
     result = subprocess.run([str(compact), '/C', '/F', '/A', '/Q', '/EXE:LZX', *map(str, files)], capture_output=True, timeout=300, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    # A failed or interrupted compression must never bypass integrity checks.
+    # Verify bytes even when compact reports a failure.
     verify_runtime(root)
     if result.returncode:
         detail = (result.stderr or result.stdout).decode(errors='replace').strip()

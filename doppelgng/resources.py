@@ -1,4 +1,4 @@
-"""Discover and rewrite document, CSS, module, and literal resource dependencies."""
+"""Parse resource references and rewrite known URLs in HTML, CSS, and JavaScript."""
 from __future__ import annotations
 
 import json
@@ -8,6 +8,8 @@ from urllib.parse import urljoin, urlsplit, urldefrag
 from bs4 import BeautifulSoup
 import tinycss2
 from tinycss2.ast import StringToken
+
+from .network import origin
 
 
 RESOURCE_ATTRIBUTES = {'script': ('src',), 'img': ('src', 'srcset'), 'source': ('src', 'srcset'), 'video': ('src', 'poster'), 'audio': ('src',), 'track': ('src',), 'iframe': ('src',), 'embed': ('src',), 'object': ('data',), 'input': ('src',), 'image': ('href', 'xlink:href'), 'use': ('href', 'xlink:href')}
@@ -63,8 +65,7 @@ def css_process(text, base, rewrite=None):
                     children = getattr(token, field, None)
                     if children:
                         walk(children)
-    # Component values preserve complete stylesheets AND style attributes; the
-    # latter are declarations, not standalone stylesheets.
+    # Style attributes contain declarations, so both inputs use component values.
     tokens = tinycss2.parse_component_value_list(text, skip_comments=False)
     walk(tokens)
     return list(dict.fromkeys(dependencies)), tinycss2.serialize(tokens) if rewrite else text
@@ -76,17 +77,11 @@ def js_process(text, base, rewrite=None, *, known_urls=()):
     def replace(match):
         value = match.group('module') or match.group('asset')
         expression = match.group(0)
-        # A literal at the start of a computed import/worker URL is not its
-        # complete destination. Preserve the expression until the browser
-        # observes the fully constructed request.
+        # A computed import prefix does not identify the complete requested URL.
         if match.group('module') and re.match(r'\s*(?:\+|\.|\[)', text[match.end():]):
             return expression
-        # A URL constructor can be a parser probe in a polyfill. A fetch literal
-        # can be a service endpoint whose method/state is chosen at runtime.
-        # Only executed requests establish these dependencies; never issue an
-        # invented GET for an unexecuted application operation.
-        # Arbitrary strings can be URL pieces, templates, or unused code. They
-        # are never evidence that a request should be invented and downloaded.
+        # URL probes, fetch calls, and arbitrary literals require observed requests.
+        # Inferring GET dependencies could execute an unused service operation.
         runtime_only = match.group('asset') is not None or bool(re.search(r'\bfetch\s*\(', expression))
         if re.search(r'\bnew\s+URL\s*\(', expression):
             runtime_only = not value.startswith(('./', '../')) or not re.search(r'\.[a-zA-Z0-9]{1,8}(?:\?|$)', value) or not re.match(r'\s*,\s*import\.meta\.url\s*\)', text[match.end():])
@@ -101,7 +96,7 @@ def js_process(text, base, rewrite=None, *, known_urls=()):
     return list(dict.fromkeys(dependencies)), result
 
 
-def html_process(text, base, rewrite=None, *, known_urls=()):
+def html_process(text, base, rewrite=None, *, known_urls=(), integrity=None):
     soup = BeautifulSoup(text, 'html.parser')
     base_tag = soup.find('base', href=True)
     effective_base = urljoin(base, base_tag['href']) if base_tag else base
@@ -114,6 +109,10 @@ def html_process(text, base, rewrite=None, *, known_urls=()):
         return rewrite(url) if rewrite and url else original
 
     for tag in soup.find_all(True):
+        if rewrite and integrity and tag.name in ('script', 'link') and tag.get('integrity'):
+            dependency = absolute(tag.get('src' if tag.name == 'script' else 'href', ''), effective_base)
+            if dependency:
+                tag['integrity'] = integrity(dependency, tag['integrity'])
         attributes = RESOURCE_ATTRIBUTES.get(tag.name, ())
         if tag.name == 'link' and RESOURCE_RELS.intersection(tag.get('rel', [])):
             attributes = ('href',)
@@ -145,7 +144,7 @@ def html_process(text, base, rewrite=None, *, known_urls=()):
                 tag.string = new
         if rewrite and tag.name == 'a' and tag.get('href'):
             target = absolute(tag['href'], effective_base)
-            if target and urlsplit(target).netloc == urlsplit(base).netloc:
+            if target and origin(target) == origin(base):
                 fragment = urlsplit(tag['href']).fragment
                 tag['href'] = rewrite(target) + ('#' + fragment if fragment else '')
     if rewrite and base_tag:
@@ -153,10 +152,10 @@ def html_process(text, base, rewrite=None, *, known_urls=()):
     return list(dict.fromkeys(dependencies)), str(soup) if rewrite else text
 
 
-def process(text, content_type, base, rewrite=None, *, known_urls=()):
+def process(text, content_type, base, rewrite=None, *, known_urls=(), integrity=None):
     mime = content_type.lower()
     if 'html' in mime:
-        return html_process(text, base, rewrite, known_urls=known_urls)
+        return html_process(text, base, rewrite, known_urls=known_urls, integrity=integrity)
     if 'css' in mime:
         return css_process(text, base, rewrite)
     if 'javascript' in mime or urlsplit(base).path.endswith(('.js', '.mjs')):
