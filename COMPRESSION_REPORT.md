@@ -33,6 +33,10 @@ LZX has been applied to this project's private `.tools/waterfox/core/` runtime. 
 
 Windows still reports a logical file size of approximately 544 MB, while actual file storage is approximately 176 MB. Use **Size on disk** when inspecting the result. Browser code and functionality are retained unchanged.
 
-The distribution ZIP remains **175,994,091 bytes** with SHA256 `7fccb626cbfdfa1d3ee376632757ab989f16f2b08f463ac5de5c02498e4b56ff`. This experiment reduces local filesystem storage; the ZIP does not carry the NTFS compression state to a recipient. Setup and package-generation behavior have not been changed to apply compression automatically.
+At the experiment milestone, the distribution ZIP remained **175,994,091 bytes** with SHA256 `7fccb626cbfdfa1d3ee376632757ab989f16f2b08f463ac5de5c02498e4b56ff`. The ZIP does not carry NTFS compression state to a recipient.
+
+Setup now automatically applies LZX to the manifest-verified private browser on Windows NTFS drives, including after extracting a delivery ZIP. It checks all runtime hashes before and after compression, passes only the explicit browser file list to `compact.exe`, and reuses a compression receipt only when the runtime manifest and measured storage still match. Unsupported filesystems retain the verified uncompressed runtime. Offline `runtime:check` does not modify storage. Explicit external browser overrides remain outside this process.
+
+The updated delivery ZIP contains **120 application/runtime files**, is **175,997,888 bytes**, and has SHA256 `33744f1b6b8601b1341085dde829ea8e452d4c692fc9a47d1d80d4ee08407424`. Fresh extraction measured 543,988,971 browser-core bytes on disk; the recipient setup automatically reduced this to 175,766,591 bytes. Repeated setup reused LZX, offline verification passed, and two fresh packaged-browser sessions retained pixel-identical desktop/mobile rendering without creating a Waterfox Start Menu shortcut.
 
 The measurement and compression mechanisms follow Microsoft's documentation for [compact](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/compact) and [GetCompressedFileSizeW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getcompressedfilesizew).

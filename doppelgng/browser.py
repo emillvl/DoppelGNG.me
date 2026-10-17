@@ -99,6 +99,9 @@ class Waterfox:
             options.add_argument('-headless')
         options.set_capability('webSocketUrl', True)
         options.set_preference('browser.shell.checkDefaultBrowser', False)
+        # StartupOSIntegration creates a Start Menu entry even for ZIP builds.
+        # Keep this runtime private to the tool, including with fresh profiles.
+        options.set_preference('browser.privateWindowSeparation.enabled', False)
         self.driver = webdriver.Firefox(options=options, service=Service(str(driver), log_output=str(artifacts / 'geckodriver.log')))
         self.driver.set_page_load_timeout(timeout)
         self.driver.set_script_timeout(timeout)

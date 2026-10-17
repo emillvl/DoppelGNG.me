@@ -16,6 +16,10 @@ npm test
 
 Setup provisions the pinned Waterfox and geckodriver runtime under ignored `.tools/` once. It verifies and reuses the complete cached runtime on subsequent runs, and also reuses already-verified Python dependencies. A separate Waterfox installation is never required. Source-checkout setup on Windows x64 uses 7-Zip to unpack the official distribution. You can supply existing executables with `DOPPELGNG_WATERFOX` and `DOPPELGNG_GECKODRIVER`. Other platforms currently require those executable paths. Set `DOPPELGNG_PYTHON` if Python is not on PATH.
 
+The Waterfox installer is unpacked without being run. DoppelGNG.me disables automatic Private Browsing shortcuts and default-browser prompts in its temporary browser profiles, so runtime launches do not add a Waterfox app to the Start menu. The intact engine remains an internal dependency; manually opening its executable can still start Waterfox.
+
+On Windows NTFS drives, setup automatically applies LZX compression to the verified private browser files. The tested runtime uses approximately **176 MB on disk**, while its logical size remains 544 MB. Repeated setup reuses the compressed files; `runtime:check` remains read-only. Other filesystems keep the verified runtime uncompressed. No additional command or flag is needed.
+
 ## Distribute the tool with Waterfox included
 
 ```text
