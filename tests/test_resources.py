@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from doppelgng.resources import html_process, css_process, js_process
-from doppelgng.storage import Store
+from doppelgng.storage import Store, workspace_lock
 from doppelgng.reconstruct import reconstruct
 
 
@@ -22,7 +22,16 @@ class ResourceTests(unittest.TestCase):
 
     def test_js_literal_modules_workers_and_assets(self):
         urls, _ = js_process('import x from "./x.js"; import("./lazy.mjs"); new URL("./worker.js", import.meta.url); fetch("/api/items"); const logo="/a.svg";', 'https://a.test/js/main.js')
-        self.assertEqual(set(urls), {'https://a.test/js/x.js', 'https://a.test/js/lazy.mjs', 'https://a.test/js/worker.js', 'https://a.test/api/items', 'https://a.test/a.svg'})
+        self.assertEqual(set(urls), {'https://a.test/js/x.js', 'https://a.test/js/lazy.mjs', 'https://a.test/js/worker.js', 'https://a.test/a.svg'})
+
+    def test_url_parser_probes_and_unexecuted_services_are_not_downloads(self):
+        urls, _ = js_process('new URL("https://тест");fetch("/delete-account");', 'https://a.test/polyfill.js')
+        self.assertEqual(urls, [])
+
+    def test_inline_style_declarations_preserve_rendered_transform_values(self):
+        urls, output = css_process('opacity: 1; transform: translate3d(0px, 2px, 0px); background: url(a.png)', 'https://a.test/', lambda _: '/a.png')
+        self.assertEqual(urls, ['https://a.test/a.png'])
+        self.assertIn('translate3d(0px, 2px, 0px)', output)
 
     def test_storage_is_collision_safe_and_detects_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -52,3 +61,12 @@ class ResourceTests(unittest.TestCase):
             Store(directory, 'https://a.test/')
             with self.assertRaisesRegex(ValueError, 'another target'):
                 Store(directory, 'https://b.test/')
+
+    def test_concurrent_captures_cannot_overwrite_the_same_workspace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with workspace_lock(directory):
+                with self.assertRaisesRegex(RuntimeError, 'Another capture'):
+                    with workspace_lock(directory):
+                        pass
+            with workspace_lock(directory):
+                self.assertTrue((Path(directory) / 'capture.lock').is_file())

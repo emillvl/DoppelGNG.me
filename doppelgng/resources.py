@@ -39,7 +39,12 @@ def css_process(text, base, rewrite=None):
         return rewrite(url) if rewrite and url else value
 
     def walk(tokens):
-        for token in tokens:
+        for index, token in enumerate(tokens):
+            if token.type == 'at-keyword' and token.lower_value == 'import':
+                first = next((item for item in tokens[index + 1:] if item.type not in ('whitespace', 'comment')), None)
+                if first and first.type == 'string':
+                    first.value = url_value(first.value)
+                    first.representation = json.dumps(first.value, ensure_ascii=False)
             if token.type == 'url':
                 new = url_value(token.value)
                 token.value = new
@@ -58,9 +63,11 @@ def css_process(text, base, rewrite=None):
                     children = getattr(token, field, None)
                     if children:
                         walk(children)
-    tokens = tinycss2.parse_stylesheet(text, skip_comments=False, skip_whitespace=False)
+    # Component values preserve complete stylesheets AND style attributes; the
+    # latter are declarations, not standalone stylesheets.
+    tokens = tinycss2.parse_component_value_list(text, skip_comments=False)
     walk(tokens)
-    return list(dict.fromkeys(dependencies)), tinycss2.serialize(tokens)
+    return list(dict.fromkeys(dependencies)), tinycss2.serialize(tokens) if rewrite else text
 
 
 def js_process(text, base, rewrite=None):
@@ -68,13 +75,21 @@ def js_process(text, base, rewrite=None):
 
     def replace(match):
         value = match.group('module') or match.group('asset')
+        expression = match.group(0)
+        # A URL constructor can be a parser probe in a polyfill. A fetch literal
+        # can be a service endpoint whose method/state is chosen at runtime.
+        # Only executed requests establish these dependencies; never issue an
+        # invented GET for an unexecuted application operation.
+        runtime_only = bool(re.search(r'\bfetch\s*\(', expression))
+        if re.search(r'\bnew\s+URL\s*\(', expression):
+            runtime_only = not value.startswith(('./', '../')) or not re.search(r'\.[a-zA-Z0-9]{1,8}(?:\?|$)', value)
         # Bare module specifiers need the original import map or build runtime.
         if not value.startswith(('/', './', '../', 'http://', 'https://')):
             return match.group(0)
         url = absolute(value, base)
-        if url:
+        if url and not runtime_only:
             dependencies.append(url)
-        return match.group(0).replace(value, rewrite(url)) if rewrite and url else match.group(0)
+        return expression.replace(value, rewrite(url)) if rewrite and url and not runtime_only else expression
     result = JS_REFERENCES.sub(replace, text)
     return list(dict.fromkeys(dependencies)), result
 
