@@ -14,7 +14,17 @@ from .export import default_output, export_project
 from .dependencies import default_crawler
 
 
-def main():
+def non_negative_int(value):
+    try:
+        number = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError('must be a non-negative integer') from error
+    if number < 0:
+        raise argparse.ArgumentTypeError('must be a non-negative integer')
+    return number
+
+
+def build_parser():
     parser = argparse.ArgumentParser(description='Capture and reconstruct an authorized website using your existing crawler and headless Waterfox.')
     sub = parser.add_subparsers(dest='command', required=True)
     run = sub.add_parser('capture', help='Discover, extract, reconstruct, and validate every reachable in-scope page')
@@ -26,6 +36,12 @@ def main():
     run.add_argument('--visual-tolerance', type=float, default=0.01)
     run.add_argument('--scenarios', help='JSON mapping page paths to read-only interaction scenarios')
     run.add_argument('--viewport', action='append', metavar='WIDTHxHEIGHT', help='Repeat for multiple exact browser content viewports (default: 1440x900 and 390x844)')
+    robots = run.add_mutually_exclusive_group()
+    robots.add_argument('--ignore-robots', dest='respect_robots', action='store_false', help='Skip robots.txt rules for this capture')
+    robots.add_argument('--respect-robots', dest='respect_robots', action='store_true', help='Apply robots.txt rules (default)')
+    run.set_defaults(respect_robots=True)
+    run.add_argument('--checkpoint-every', type=non_negative_int, default=1, metavar='N', help='Save the crawler checkpoint every N pages (default: 1; 0 disables periodic saves). Final saves and reconstruction recovery records remain enabled')
+    run.add_argument('-q', '--quiet', action='store_true', help='Suppress per-page progress and the crawler report; keep the final JSON result and errors')
     for command in ('status', 'validate', 'export'):
         child = sub.add_parser(command)
         child.add_argument('--output')
@@ -33,7 +49,12 @@ def main():
             child.add_argument('--port', type=int, default=4173)
         if command == 'export':
             child.add_argument('--destination', help='Delivery folder (default: <website>+copied)')
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.command == 'capture':
         if not args.authorized:
             parser.error('--authorized is required; automated crawling is restricted to websites you own or may reproduce')
@@ -53,7 +74,7 @@ def main():
             except ValueError:
                 parser.error('--viewport must be WIDTHxHEIGHT, each dimension between 240 and 7680')
         with workspace_lock(output):
-            store = capture(args.url, args.crawler, output, port=args.port, allowed_ratio=args.visual_tolerance, scenarios=scenarios, viewports=viewports)
+            store = capture(args.url, args.crawler, output, port=args.port, allowed_ratio=args.visual_tolerance, scenarios=scenarios, viewports=viewports, respect_robots=args.respect_robots, checkpoint_every=args.checkpoint_every, quiet=args.quiet)
     else:
         output = args.output
         if not output:

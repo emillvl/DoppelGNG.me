@@ -48,6 +48,15 @@ This file contains factual milestone evidence. Full captured website data and br
 - The extracted package's real headless Waterfox started successfully, rendered a test document, established exact 1280x800 and 390x844 content viewports, and enabled browser response-body collection. Dependency network requests and Git calls were forced to fail throughout this smoke check; neither was attempted.
 - The distribution excludes Git metadata, virtual environments, browser profiles, installer archives, settings, and captured websites. Recipients still need Node.js 22+ and Python 3.10+; Python packages install on first setup. The prepared browser bundle supports Windows x64.
 
+## Optional terminal crawler controls
+
+- Added optional `--ignore-robots`, `--respect-robots`, `--checkpoint-every N`, and `-q`/`--quiet` flags. A command without these flags remains valid and retains the previous defaults. Conflicting robots choices and invalid checkpoint values fail before capture starts.
+- Project regression suite: **46 Python tests and 2 Node HTTP tests passed**. The pinned upstream suite passed **33 tests** (**81 total**). All 46 Python tests additionally passed with the original external crawler override.
+- Actual inherited checkpoint writes were verified at the selected three-page interval. An interval of zero suppressed periodic writes while retaining a working final save. Reconstruction recovery records and RAM-triggered offloading remain independent of this interval.
+- Live terminal checks against an owned fixture with `Disallow: /` confirmed that the original command with no optional flags applied the default robots rule. An explicit `--respect-robots --checkpoint-every 0 --quiet` run also enforced the rule, emitted no progress output, and retained the error on stderr with exit code 1.
+- Resumed that blocked capture with `--ignore-robots --checkpoint-every 3 -q`. It completed **4 HTML pages and 1 download**, archived **10 resources**, and passed **24 desktop/mobile screenshot comparisons and all 11 navigation checks**, including the menu-revealed route. Stdout contained exactly one final JSON result, stderr was empty, and the process exited 0. The manifest recorded all three selected settings. The original preview selection was restored and the test server was stopped.
+- Rebuilt the Windows distribution with the optional flags and documentation: **117 application and runtime files**, **175,991,649 bytes**. SHA256: `cb5b721ec4444b1b9b18ffac9023d623a5c661623cd2eed29e2d9df1dc54f32f`. The archive's CLI, pipeline, CLI tests, and README were verified to match the tested working-tree files.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.

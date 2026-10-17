@@ -50,7 +50,8 @@ class Handler(BaseHTTPRequestHandler):
         elif route == '/download.bin':
             body, mime = b'owned-regression-dataset\x00\x01\x02', 'application/octet-stream'
         elif route == '/robots.txt':
-            body, mime = b'User-agent: *\nDisallow: /private/\n', 'text/plain'
+            body = b'User-agent: *\nDisallow: /\n' if getattr(self.server, 'disallow_all', False) else b'User-agent: *\nDisallow: /private/\n'
+            mime = 'text/plain'
         else:
             status, body, mime = 404, b'Not found', 'text/plain'
         self.send_response(status)
@@ -68,7 +69,9 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=4318)
+    parser.add_argument('--disallow-all', action='store_true', help='Disallow all routes in robots.txt for crawl-option regression checks')
     args = parser.parse_args()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    server.disallow_all = args.disallow_all
     print(f'Owned regression fixture: http://127.0.0.1:{args.port}', flush=True)
     server.serve_forever()

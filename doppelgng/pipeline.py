@@ -53,11 +53,15 @@ class Preview:
                 self.process.wait()
 
 
-def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, scenarios):
+def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, scenarios, respect_robots=True, checkpoint_every=1, quiet=False):
     class ReconstructionCrawler(module.WebCrawler):
         def __init__(self):
-            super().__init__(store.data['target'], output_dir=str(store.root / 'crawler'), delay=0.3, checkpoint_every=1, allow_selenium=False, respect_robots=True, resume=True)
+            super().__init__(store.data['target'], output_dir=str(store.root / 'crawler'), delay=0.3, checkpoint_every=checkpoint_every, allow_selenium=False, respect_robots=respect_robots, resume=True, quiet=quiet)
             self.archive = Archive(store, browser)
+
+        def _print_summary(self):
+            if not self.quiet:
+                super()._print_summary()
 
         def _load_robots(self):
             super()._load_robots()
@@ -114,7 +118,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             page['state'] = 'extracting'
             page.pop('error', None)
             store.save()
-            print(f'[extract] {url}', flush=True)
+            self._say(f'[extract] {url}')
             start = len(browser.bidi.events)
             try:
                 probe = self.archive.session.head(url, timeout=30, allow_redirects=True)
@@ -168,7 +172,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     raise ExtractionFailure(f'Reconstruction integrity failed: {broken}')
                 page['state'] = 'reconstructed'
                 store.save()
-                print(f'[validate] {url} ({len(page["resources"])} resources)', flush=True)
+                self._say(f'[validate] {url} ({len(page["resources"])} resources)')
                 local_url = preview.origin + public_url(url, store.data['target'])
                 validation = local_validate(browser, url, local_url, directory, baselines, allowed_ratio=allowed_ratio)
                 def capture_interaction_resources(events):
@@ -189,7 +193,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 page['state'] = 'validated' if validation['passed'] else 'failed'
                 if not validation['passed']:
                     raise ExtractionFailure(f'Page validation failed: {url}: {validation["errors"]}')
-                print(f'[passed] {url}', flush=True)
+                self._say(f'[passed] {url}')
                 store.save()
                 return module.FetchResult(links=links, html=original)
             except BaseException as error:
@@ -202,7 +206,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
     return ReconstructionCrawler()
 
 
-def navigation_validation(store, browser, preview, only_edges=None):
+def navigation_validation(store, browser, preview, only_edges=None, *, quiet=False):
     def link_for(destination):
         def locate():
             return browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]&&!a.closest("[inert]")&&getComputedStyle(a).display!=="none"&&getComputedStyle(a).visibility!=="hidden");', destination)
@@ -254,7 +258,8 @@ def navigation_validation(store, browser, preview, only_edges=None):
             destination = preview.origin + public_url(link, store.data['target'])
             if destination.split('#')[0] not in {item.split('#')[0] for item in unique}:
                 unique.append(destination)
-        print(f'[integration] {url} ({len(unique)} internal links)', flush=True)
+        if not quiet:
+            print(f'[integration] {url} ({len(unique)} internal links)', flush=True)
         for destination in unique:
             if edges is not None and (url, destination) not in edges:
                 continue
@@ -326,11 +331,13 @@ def navigation_validation(store, browser, preview, only_edges=None):
     return store.data['integration']
 
 
-def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None):
+def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None, respect_robots=True, checkpoint_every=1, quiet=False):
+    if checkpoint_every < 0:
+        raise ValueError('--checkpoint-every must be a non-negative integer')
     module = load_crawler(crawler_directory)
     target = module.WebCrawler._normalize_url(target)
     store = Store(output, target, crawler_identity(crawler_directory))
-    store.data['policy'] = {'page_host': urlsplit(target).netloc, 'respect_robots': True, 'volatile_static_query': ['_rsc'], 'allowed_visual_ratio': allowed_ratio, 'viewports': viewports or [[1440, 900], [390, 844]]}
+    store.data['policy'] = {'page_host': urlsplit(target).netloc, 'respect_robots': respect_robots, 'checkpoint_every': checkpoint_every, 'quiet': quiet, 'volatile_static_query': ['_rsc'], 'allowed_visual_ratio': allowed_ratio, 'viewports': viewports or [[1440, 900], [390, 844]]}
     store.data['status'] = 'running'
     store.data['scenarios'] = scenarios or store.data.get('scenarios', {})
     # Each output is a standalone, buildless npm project as well as a checkpoint.
@@ -341,8 +348,8 @@ def capture(target, crawler_directory, output, *, port=4173, viewports=None, all
     atomic_json(Path('.doppelgng/current.json'), {'manifest': str(store.path)})
     with Preview(store, port) as preview, Waterfox(store.root / 'artifacts') as browser:
         store.data['browser'] = browser.identity
-        adapter = build_adapter(module, store, browser, preview, viewports=store.data['policy']['viewports'], allowed_ratio=allowed_ratio, scenarios=store.data['scenarios'])
+        adapter = build_adapter(module, store, browser, preview, viewports=store.data['policy']['viewports'], allowed_ratio=allowed_ratio, scenarios=store.data['scenarios'], respect_robots=respect_robots, checkpoint_every=checkpoint_every, quiet=quiet)
         adapter.crawl()
-        navigation_validation(store, browser, preview)
+        navigation_validation(store, browser, preview, quiet=quiet)
     print(json.dumps({'status': store.data['status'], 'pages': len(store.data['pages']), 'resources': len(store.data['resources']), 'manifest': str(store.path)}, indent=2), flush=True)
     return store
