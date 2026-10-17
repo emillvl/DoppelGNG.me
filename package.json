@@ -1,0 +1,16 @@
+{
+  "name": "doppelgng.me",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local, resumable website reconstruction using an existing crawler and headless Waterfox",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "crawl": "node scripts/python.mjs -m doppelgng capture",
+    "validate": "node scripts/python.mjs -m doppelgng validate",
+    "status": "node scripts/python.mjs -m doppelgng status",
+    "dev": "node server.mjs",
+    "test": "node scripts/python.mjs -m unittest discover -s tests -v"
+  }
+}
