@@ -11,6 +11,6 @@
     "validate": "node scripts/python.mjs -m doppelgng validate",
     "status": "node scripts/python.mjs -m doppelgng status",
     "dev": "node server.mjs",
-    "test": "node scripts/python.mjs -m unittest discover -s tests -v"
+    "test": "node scripts/python.mjs -m unittest discover -s tests -v && node --test tests/server.test.mjs"
   }
 }
