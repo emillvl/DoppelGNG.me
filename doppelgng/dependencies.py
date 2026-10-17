@@ -42,7 +42,7 @@ def crawler_errors(directory, spec):
     return [name for name, expected in spec['files'].items() if not (directory / name).is_file() or hash_file(directory / name) != expected]
 
 
-def ensure_crawler(root=PROJECT_ROOT):
+def ensure_crawler(root=PROJECT_ROOT, *, offline=False):
     root = Path(root).resolve()
     spec = runtime_lock(root)['crawler']
     target = root / '.tools' / 'webcrawler'
@@ -52,6 +52,8 @@ def ensure_crawler(root=PROJECT_ROOT):
         if errors:
             raise RuntimeError(f'Managed crawler files differ from the pinned revision: {errors}. Preserve any local changes and choose an explicit --crawler path or a fresh project cache.')
     else:
+        if offline:
+            raise RuntimeError('The packaged crawler is missing. Run npm run setup with network access or extract a complete distribution.')
         partial = target.with_name('webcrawler.partial')
         if not partial.exists():
             print(f'Fetching required crawler files at {spec["revision"][:12]}', flush=True)

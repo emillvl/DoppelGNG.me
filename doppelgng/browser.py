@@ -15,6 +15,8 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 
+from .dependencies import PROJECT_ROOT
+
 
 class Bidi:
     def __init__(self, url):
@@ -87,8 +89,8 @@ class Bidi:
 class Waterfox:
     def __init__(self, artifacts: Path, *, headless=True, timeout=40):
         artifacts.mkdir(parents=True, exist_ok=True)
-        binary = Path(os.environ.get('DOPPELGNG_WATERFOX', '.tools/waterfox/core/waterfox.exe')).resolve()
-        driver = Path(os.environ.get('DOPPELGNG_GECKODRIVER', '.tools/geckodriver.exe')).resolve()
+        binary = Path(os.environ.get('DOPPELGNG_WATERFOX', PROJECT_ROOT / '.tools/waterfox/core/waterfox.exe')).resolve()
+        driver = Path(os.environ.get('DOPPELGNG_GECKODRIVER', PROJECT_ROOT / '.tools/geckodriver.exe')).resolve()
         if not binary.is_file() or not driver.is_file():
             raise RuntimeError('Waterfox runtime is missing. Run npm run setup or set DOPPELGNG_WATERFOX and DOPPELGNG_GECKODRIVER.')
         options = Options()

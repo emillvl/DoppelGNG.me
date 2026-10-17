@@ -14,7 +14,20 @@ npm test
 
 `npm run setup` creates a virtual environment, installs Python dependencies, and fetches only the required files from [emillvl/webcrawler](https://github.com/emillvl/webcrawler) into `.tools/webcrawler/`. The revision and file hashes are pinned in `runtime-lock.json`; verified cached files are reused without another clone. Source, requirements, license, documentation, and upstream regression tests are retained. `--crawler` or `DOPPELGNG_CRAWLER` remains available as an explicit override.
 
-Setup provisions a checksum-verified Waterfox and geckodriver runtime under ignored `.tools/`. On Windows x64, 7-Zip is used to unpack the official browser distribution without a system installation. You can supply existing executables with `DOPPELGNG_WATERFOX` and `DOPPELGNG_GECKODRIVER`. Other platforms currently require those executable paths. Set `DOPPELGNG_PYTHON` if Python is not on PATH.
+Setup provisions the pinned Waterfox and geckodriver runtime under ignored `.tools/` once. It verifies and reuses the complete cached runtime on subsequent runs, and also reuses already-verified Python dependencies. A separate Waterfox installation is never required. Source-checkout setup on Windows x64 uses 7-Zip to unpack the official distribution. You can supply existing executables with `DOPPELGNG_WATERFOX` and `DOPPELGNG_GECKODRIVER`. Other platforms currently require those executable paths. Set `DOPPELGNG_PYTHON` if Python is not on PATH.
+
+## Distribute the tool with Waterfox included
+
+```text
+npm run setup
+npm run package
+```
+
+This creates `dist/doppelgng.me-windows-x64.zip` and a SHA256 checksum file. The ZIP already includes the pinned crawler files, complete Waterfox runtime, geckodriver, integrity manifests, and license notices. It excludes Git history, virtual environments, downloaded websites, user settings, browser profiles, installer archives, and copied-site output.
+
+Recipients extract the ZIP, open a terminal in its `DoppelGNG.me` folder, and run `npm install` followed by `npm run setup`. Node.js 22+ and Python 3.10+ are prerequisites. Python packages install on first setup, while the included crawler and browser are verified and reused; recipients need neither Git, 7-Zip, nor a Waterfox installation. Browser binaries remain outside source commits and travel inside this distribution artifact.
+
+`npm run runtime:check` verifies the cached or bundled crawler and browser without network access. It fails clearly if a required runtime file is missing or altered. See `THIRD_PARTY_NOTICES.md` for included dependency notices.
 
 ## Reconstruct an authorized website
 
