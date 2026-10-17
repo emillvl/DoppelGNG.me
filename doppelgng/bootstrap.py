@@ -14,6 +14,8 @@ import zipfile
 import requests
 from bs4 import BeautifulSoup
 
+from .dependencies import ensure_crawler
+
 
 TOOLS = Path('.tools').resolve()
 
@@ -35,6 +37,8 @@ def download(url: str, destination: Path, algorithm: str, expected: str):
 
 def main():
     TOOLS.mkdir(exist_ok=True)
+    if not os.environ.get('DOPPELGNG_CRAWLER'):
+        ensure_crawler()
     configured = os.environ.get('DOPPELGNG_WATERFOX')
     binary = Path(configured).resolve() if configured else TOOLS / 'waterfox' / 'core' / 'waterfox.exe'
     driver = Path(os.environ.get('DOPPELGNG_GECKODRIVER', TOOLS / 'geckodriver.exe')).resolve()

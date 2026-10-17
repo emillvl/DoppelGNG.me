@@ -4,7 +4,7 @@ A local website reconstruction pipeline for websites you own or have permission 
 
 ## Development
 
-Requires Node.js 22+, Python 3.10+, and the existing crawler directory containing `webcrawler.py` and `signatures.py`.
+Requires Node.js 22+ and Python 3.10+. The first setup from a source checkout also needs Git.
 
 ```text
 npm install
@@ -12,12 +12,14 @@ npm run setup
 npm test
 ```
 
-`npm run setup` creates a virtual environment, installs Python dependencies, and provisions a checksum-verified Waterfox and geckodriver runtime under ignored `.tools/`. On Windows x64, 7-Zip is used to unpack the official browser distribution without a system installation. You can supply existing executables with `DOPPELGNG_WATERFOX` and `DOPPELGNG_GECKODRIVER`. Other platforms currently require those executable paths. Set `DOPPELGNG_PYTHON` if Python is not on PATH.
+`npm run setup` creates a virtual environment, installs Python dependencies, and fetches only the required files from [emillvl/webcrawler](https://github.com/emillvl/webcrawler) into `.tools/webcrawler/`. The revision and file hashes are pinned in `runtime-lock.json`; verified cached files are reused without another clone. Source, requirements, license, documentation, and upstream regression tests are retained. `--crawler` or `DOPPELGNG_CRAWLER` remains available as an explicit override.
+
+Setup provisions a checksum-verified Waterfox and geckodriver runtime under ignored `.tools/`. On Windows x64, 7-Zip is used to unpack the official browser distribution without a system installation. You can supply existing executables with `DOPPELGNG_WATERFOX` and `DOPPELGNG_GECKODRIVER`. Other platforms currently require those executable paths. Set `DOPPELGNG_PYTHON` if Python is not on PATH.
 
 ## Reconstruct an authorized website
 
 ```text
-npm run crawl -- --url https://your-authorized-site.example --authorized --crawler /path/to/WebCrawler
+npm run crawl -- --url https://your-authorized-site.example --authorized
 npm run status
 npm run dev
 ```
@@ -65,7 +67,7 @@ The product supports reusable frontend capture, not recovery of arbitrary backen
 
 The inspected existing crawler is version 2.0.0: a Python `requests`/Beautiful Soup single-host crawler with a LIFO frontier, URL normalization and tracking-parameter removal, robots handling, Selenium/Chrome fallback, heuristic input analysis, and atomic JSON checkpoints. Its `FetchResult` contains HTML, discovered links, and an escalation flag; it does not archive dependencies, response bodies, rendered state, or screenshots.
 
-`doppelgng.crawler` imports that project in place. Adapters inherit its URL discovery, analysis, robots policy, and crawl loop. Waterfox extraction, dependency closure, resumable storage, reconstruction, and validation are separate components. The original crawler and its configuration are not edited or copied into this repository. Source hashes provide integration provenance.
+`doppelgng.crawler` imports the managed, pinned upstream files by default, or an explicitly configured crawler in place. Adapters inherit its URL discovery, analysis, robots policy, and crawl loop. Waterfox extraction, dependency closure, resumable storage, reconstruction, and validation are separate components. The current upstream uses a deduplicated FIFO frontier; the adapter also supports the original local crawler's LIFO frontier. No upstream source is rewritten, and the original external crawler and its Git configuration remain untouched. Source hashes provide integration provenance.
 
 The previous crawler report is evidence of an earlier run only. Current extraction and validation must produce their own evidence. Browser-visible frontend code cannot recover unavailable server implementation or prove behavior that was not exercised. Uncaptured services and unsupported interaction states must remain explicit discrepancies.
 
