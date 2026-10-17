@@ -72,6 +72,14 @@ This file contains factual milestone evidence. Full captured website data and br
 - All **126 protected files** (the existing manifest and raw/site files) retained their original hashes. The original preview selection was restored. The user's existing copied folder was retained without recapturing or overwriting it.
 - Rebuilt and verified the Windows distribution with the fixes: **118 application and runtime files**, **175,994,091 bytes**. SHA256: `7fccb626cbfdfa1d3ee376632757ab989f16f2b08f463ac5de5c02498e4b56ff`.
 
+## Waterfox filesystem compression
+
+- Compared a verified runtime copy without compression, with XPRESS4K, and with LZX. Windows-reported file storage was **543,988,971**, **265,146,174**, and **175,766,591 bytes** respectively. LZX saves **368,222,380 bytes (67.69%)** with identical logical file contents.
+- Three fresh browser sessions per mode had warm-cache median launches of **5.375 s**, **5.324 s**, and **5.333 s** respectively. Exact viewports, response-body capture, downloads, computed asset execution, and desktop/mobile screenshot equality passed. These timing samples do not measure cold starts.
+- The LZX runtime passed **24 existing visual comparisons**, **11 navigation checks**, and offline replay. All **66 runtime/notice hashes** and **126 protected copied-site file hashes** remained correct. Decompression of the test copy restored its original size and hashes.
+- Applied LZX to the actual project runtime, then passed an additional browser smoke check, **53 Python + 2 Node + 33 upstream tests (88 total)**, and offline runtime verification. The extra test runtime was removed after validation.
+- The existing 175,994,091-byte ZIP and its SHA256 remained unchanged. This is a disk-storage improvement on the tested NTFS machine; automatic setup/distribution behavior is unchanged. Details are in `COMPRESSION_REPORT.md`.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.
