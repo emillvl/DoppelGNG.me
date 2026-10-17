@@ -1,0 +1,6 @@
+{
+  "/": [
+    { "action": "click", "selector": "#menu", "assert_selector": "#panel" },
+    { "action": "details", "selector": "summary", "assert_selector": "details" }
+  ]
+}

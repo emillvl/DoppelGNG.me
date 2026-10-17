@@ -4,8 +4,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
+from contextlib import contextmanager
+
+import psutil
 
 
 def now():
@@ -21,6 +25,28 @@ def atomic_json(path: Path, data):
     temporary = path.with_suffix(path.suffix + '.tmp')
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     temporary.replace(path)
+
+
+@contextmanager
+def workspace_lock(directory):
+    root = Path(directory).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    lock = root / 'capture.lock'
+    if lock.exists():
+        owner = json.loads(lock.read_text(encoding='utf-8'))
+        if psutil.pid_exists(owner['pid']):
+            raise RuntimeError(f'Another capture or validation owns {root} (process {owner["pid"]})')
+        lock.unlink()
+    try:
+        descriptor = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    except FileExistsError as error:
+        raise RuntimeError(f'Another operation acquired the capture workspace: {root}') from error
+    with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
+        json.dump({'pid': os.getpid(), 'created_at': now()}, handle)
+    try:
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 class Store:

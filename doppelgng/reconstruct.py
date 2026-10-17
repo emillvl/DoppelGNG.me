@@ -35,4 +35,5 @@ def reconstruct(store, urls):
         if page['state'] == 'complete' and set(page['resources']).intersection(changed):
             page['state'] = 'reconstructed'
             page['validation']['stale'] = True
+            store.data['status'] = 'incomplete'
     store.save()

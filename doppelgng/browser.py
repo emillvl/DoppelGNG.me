@@ -100,7 +100,11 @@ class Waterfox:
         self.driver = webdriver.Firefox(options=options, service=Service(str(driver), log_output=str(artifacts / 'geckodriver.log')))
         self.driver.set_page_load_timeout(timeout)
         self.driver.set_script_timeout(timeout)
-        self.bidi = Bidi(self.driver.capabilities['webSocketUrl'])
+        try:
+            self.bidi = Bidi(self.driver.capabilities['webSocketUrl'])
+        except BaseException:
+            self.driver.quit()
+            raise
         self.timeout = timeout
         self.identity = {'binary': str(binary), 'capabilities': self.driver.capabilities, 'body_capture_error': self.bidi.body_capture_error}
 
@@ -109,6 +113,12 @@ class Waterfox:
         self.settle()
 
     def viewport(self, width, height):
+        # Browser-protocol viewport emulation avoids the native Windows minimum
+        # window width, which otherwise makes real mobile-width checks fail.
+        context = self.bidi.command('browsingContext.getTree', {})['contexts'][0]['context']
+        self.bidi.command('browsingContext.setViewport', {'context': context, 'viewport': {'width': width, 'height': height}, 'devicePixelRatio': 1})
+        if self.driver.execute_script('return [innerWidth, innerHeight]') == [width, height]:
+            return
         self.driver.set_window_rect(width=width, height=height)
         for _ in range(3):
             actual = self.driver.execute_script('return [innerWidth, innerHeight]')
@@ -116,22 +126,22 @@ class Waterfox:
                 return
             rect = self.driver.get_window_rect()
             self.driver.set_window_rect(width=rect['width'] + width-actual[0], height=rect['height'] + height-actual[1])
-        raise RuntimeError('Could not establish the requested content viewport')
+        raise RuntimeError(f'Could not establish the requested content viewport: expected {[width, height]}, measured {actual}')
 
     def settle(self):
         WebDriverWait(self.driver, self.timeout).until(lambda d: d.execute_script('return document.readyState') == 'complete')
         self.driver.execute_async_script('const done=arguments[arguments.length-1]; document.fonts.ready.then(()=>done(true),()=>done(false));')
         time.sleep(0.4)
 
-    def source(self, url):
+    def source(self, url, request_headers=None):
         result = self.driver.execute_async_script('''
-            const url=arguments[0], done=arguments[arguments.length-1];
-            fetch(url, {cache:'no-store'}).then(async r=>{
+            const url=arguments[0], headers=arguments[1], done=arguments[arguments.length-1];
+            fetch(url, {cache:'no-store',headers}).then(async r=>{
                 const bytes=new Uint8Array(await r.arrayBuffer()); let s='';
                 for(let i=0;i<bytes.length;i+=32768) s+=String.fromCharCode(...bytes.subarray(i,i+32768));
                 done({status:r.status,url:r.url,headers:Object.fromEntries(r.headers),base64:btoa(s)});
             }).catch(e=>done({error:String(e)}));
-        ''', url)
+        ''', url, request_headers or {})
         if 'error' in result or result.get('status', 500) >= 400:
             raise RuntimeError(f'Waterfox source retrieval failed for {url}: {result}')
         return result, base64.b64decode(result.pop('base64'))
