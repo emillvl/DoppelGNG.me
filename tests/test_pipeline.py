@@ -105,6 +105,16 @@ class PipelineGates(unittest.TestCase):
         self.assertEqual(output.getvalue(), '')
         self.assertEqual(self.store.data['pages']['https://example.test/']['state'], 'failed')
 
+    def test_failed_crawl_only_prints_product_progress_and_retains_checkpoint(self):
+        crawler = self.make_crawler(quiet=False)
+        with redirect_stdout(io.StringIO()) as output, patch.object(crawler, '_load_robots'), patch.object(crawler.archive.session, 'head', side_effect=RuntimeError('upstream unavailable')):
+            with self.assertRaisesRegex(RuntimeError, 'upstream unavailable'):
+                crawler.crawl()
+        lines = output.getvalue().splitlines()
+        self.assertEqual(lines, ['[doppelgng.me] Extracting https://example.test/'])
+        self.assertTrue(Path(crawler.state_file).is_file())
+        self.assertEqual(self.store.data['status'], 'incomplete')
+
     def test_missing_edge_cannot_turn_a_failed_integration_into_a_pass(self):
         page = self.store.page('https://example.test/')
         page.update({'state': 'validated', 'kind': 'page'})
