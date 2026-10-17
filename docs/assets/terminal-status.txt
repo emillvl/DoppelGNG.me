@@ -1,0 +1,15 @@
+$ node scripts/python.mjs -m doppelgng status --output .tools/documentation-2dbfkxhb/capture
+
+{
+  "status": "complete",
+  "pages": {
+    "http://127.0.0.1:57682/": "complete",
+    "http://127.0.0.1:57682/nested": "complete",
+    "http://127.0.0.1:57682/download.bin": "complete",
+    "http://127.0.0.1:57682/dynamic/": "complete",
+    "http://127.0.0.1:57682/menu-only/": "complete",
+    "http://127.0.0.1:57682/nested/": "complete"
+  },
+  "resources": 13,
+  "manifest": "<workspace>\\.tools\\documentation-2dbfkxhb\\capture\\manifest.json"
+}

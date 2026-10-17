@@ -7,11 +7,12 @@ from urllib.parse import urlsplit
 
 from .pipeline import capture, Preview, navigation_validation
 from .browser import Waterfox
-from .storage import Store, workspace_lock
+from .storage import Store, workspace_lock, incomplete_on_failure, now
 from .validation import local_validate, interaction_check
 from .reconstruct import public_url
 from .export import default_output, export_project
 from .dependencies import default_crawler
+from .network import DestinationDenied, origin
 
 
 def non_negative_int(value):
@@ -25,11 +26,12 @@ def non_negative_int(value):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description='Capture and reconstruct an authorized website using your existing crawler and headless Waterfox.')
+    parser = argparse.ArgumentParser(description='Capture an authorized website and verify its local replay with headless Waterfox.')
     sub = parser.add_subparsers(dest='command', required=True)
-    run = sub.add_parser('capture', help='Discover, extract, reconstruct, and validate every reachable in-scope page')
+    run = sub.add_parser('capture', help='Discover in-scope pages, archive resources, and validate local replay')
     run.add_argument('--url', required=True)
     run.add_argument('--authorized', action='store_true', help='Confirm you own this website or are authorized to reproduce it')
+    run.add_argument('--authorize-resource-origin', action='append', metavar='URL', help='Authorize an additional resource origin, including private networks. Repeat for each origin you own or may reproduce; redirects to other private origins remain blocked. Saved for resume')
     run.add_argument('--crawler', default=str(default_crawler()), help='Optional crawler override; defaults to the pinned project-local crawler installed by npm run setup')
     run.add_argument('--output', help='Capture folder (default: the website domain)')
     run.add_argument('--port', type=int, default=4173)
@@ -63,6 +65,12 @@ def main(argv=None):
             parser.error('--url must be an HTTP(S) URL without embedded credentials')
         if not 0 <= args.visual_tolerance <= 1:
             parser.error('--visual-tolerance must be between 0 and 1')
+        if args.authorize_resource_origin:
+            try:
+                for value in args.authorize_resource_origin:
+                    origin(value)
+            except DestinationDenied as error:
+                parser.error(str(error))
         output = args.output or str(default_output(args.url))
         scenarios = json.loads(Path(args.scenarios).read_text(encoding='utf-8')) if args.scenarios else None
         viewports = None
@@ -74,7 +82,7 @@ def main(argv=None):
             except ValueError:
                 parser.error('--viewport must be WIDTHxHEIGHT, each dimension between 240 and 7680')
         with workspace_lock(output):
-            store = capture(args.url, args.crawler, output, port=args.port, allowed_ratio=args.visual_tolerance, scenarios=scenarios, viewports=viewports, respect_robots=args.respect_robots, checkpoint_every=args.checkpoint_every, quiet=args.quiet)
+            store = capture(args.url, args.crawler, output, port=args.port, allowed_ratio=args.visual_tolerance, scenarios=scenarios, viewports=viewports, respect_robots=args.respect_robots, checkpoint_every=args.checkpoint_every, quiet=args.quiet, authorized_resource_origins=args.authorize_resource_origin)
     else:
         output = args.output
         if not output:
@@ -82,35 +90,46 @@ def main(argv=None):
             output = str(Path(current['manifest']).parent)
         store = Store(output)
         if args.command == 'export':
-            destination = export_project(store, args.destination)
+            with workspace_lock(output):
+                store = Store(output)
+                destination = export_project(store, args.destination)
             print(json.dumps({'project': str(destination), 'start': 'npm run dev', 'status': store.data['status']}, indent=2))
             return 0
         if args.command == 'validate':
-            with workspace_lock(output), Preview(store, args.port) as preview, Waterfox(store.root / 'artifacts') as browser:
-                store.data['status'] = 'validating'
-                store.save()
-                for url, page in store.data['pages'].items():
-                    if page.get('kind') != 'page':
-                        if store.verify(page['resources']):
-                            page['state'] = 'failed'
-                            page['validation'] = {'passed': False, 'errors': ['Download or resource integrity failed']}
-                        continue
-                    print(f'[regression] {url}', flush=True)
-                    directory = store.artifact_dir(url)
-                    baselines = json.loads((directory / 'baseline.json').read_text(encoding='utf-8'))
-                    result = local_validate(browser, url, preview.origin + public_url(url, store.data['target']), directory, baselines, allowed_ratio=store.data['policy']['allowed_visual_ratio'])
-                    actions = interaction_check(browser, url, preview.origin + public_url(url, store.data['target']), directory, store.data.get('scenarios', {}).get(urlsplit(url).path, []))
-                    result['interactions'] = actions
-                    result['passed'] &= all(action['passed'] for action in actions)
-                    if not result['passed']:
-                        result['errors'].append('Visual, browser, content, or interaction verification failed')
-                    broken = store.verify(page['resources'])
-                    result['integrity_errors'] = broken
-                    result['passed'] &= not broken
-                    page['validation'] = result
-                    page['state'] = 'validated' if result['passed'] else 'failed'
+            with workspace_lock(output):
+                store = Store(output)
+                with incomplete_on_failure(store), Preview(store, args.port) as preview, Waterfox(store.root / 'artifacts') as browser:
+                    store.data['status'] = 'validating'
+                    store.data.pop('error', None)
                     store.save()
-                navigation_validation(store, browser, preview)
+                    for url, page in store.data['pages'].items():
+                        if page.get('kind') != 'page':
+                            if page.get('kind') != 'download' or store.verify(page['resources']):
+                                page['state'] = 'failed'
+                                page['validation'] = {'passed': False, 'errors': ['Download or resource integrity failed']}
+                            else:
+                                page['state'] = 'download_validated'
+                                page['validation'] = {'passed': True, 'checked_at': now(), 'applicable': 'archived original and replay resource hash integrity'}
+                            store.save()
+                            continue
+                        page['state'] = 'validating'
+                        store.save()
+                        print(f'[regression] {url}', flush=True)
+                        directory = store.artifact_dir(url)
+                        baselines = json.loads((directory / 'baseline.json').read_text(encoding='utf-8'))
+                        result = local_validate(browser, url, preview.origin + public_url(url, store.data['target']), directory, baselines, allowed_ratio=store.data['policy']['allowed_visual_ratio'])
+                        actions = interaction_check(browser, url, preview.origin + public_url(url, store.data['target']), directory, store.data.get('scenarios', {}).get(urlsplit(url).path, []))
+                        result['interactions'] = actions
+                        result['passed'] &= all(action['passed'] for action in actions)
+                        if not result['passed']:
+                            result['errors'].append('Visual, browser, content, or interaction verification failed')
+                        broken = store.verify(page['resources'])
+                        result['integrity_errors'] = broken
+                        result['passed'] &= not broken
+                        page['validation'] = result
+                        page['state'] = 'validated' if result['passed'] else 'failed'
+                        store.save()
+                    navigation_validation(store, browser, preview)
         print(json.dumps({'status': store.data['status'], 'pages': {url: page['state'] for url, page in store.data['pages'].items()}, 'resources': len(store.data['resources']), 'manifest': str(store.path)}, indent=2))
     return 0 if args.command == 'status' or store.data['status'] == 'complete' else 1
 

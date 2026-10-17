@@ -1,4 +1,4 @@
-"""Strict page gates layered on the existing crawler's discovery loop."""
+"""Capture pages, validate local replay, and check navigation."""
 from __future__ import annotations
 
 import json
@@ -6,7 +6,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import time
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
+from urllib.robotparser import RobotFileParser
 
 from bs4 import BeautifulSoup
 import requests
@@ -15,9 +16,10 @@ from .archive import Archive, ExtractionFailure, sanitized_events
 from .browser import Waterfox
 from .crawler import load_crawler, crawler_identity
 from .discovery import sitemap_pages
+from .network import origin
 from .reconstruct import reconstruct, public_url
 from .resources import html_process
-from .storage import Store, atomic_json, now
+from .storage import Store, atomic_json, incomplete_on_failure, now
 from .validation import record_baseline, local_validate, interaction_check, snapshot, scroll
 
 
@@ -58,13 +60,14 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
         def __init__(self):
             super().__init__(store.data['target'], output_dir=str(store.root / 'crawler'), delay=0.3, checkpoint_every=checkpoint_every, allow_selenium=False, respect_robots=respect_robots, resume=True, quiet=quiet)
             self.archive = Archive(store, browser)
+            self.authorized_resource_origins = store.data.get('policy', {}).get('authorized_resource_origins', [])
 
         def _print_summary(self):
-            # Only reconstruction validation can determine product completion.
+            # The manifest records completion after replay validation.
             pass
 
         def _say(self, message=''):
-            # Keep upstream checkpointing internal, without its report or banner.
+            # Suppress upstream output while retaining its checkpoint behavior.
             pass
 
         def _progress(self, message):
@@ -72,7 +75,19 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 print(f'[doppelgng.me] {message}', flush=True)
 
         def _load_robots(self):
-            super()._load_robots()
+            self._robots = None
+            if self.respect_robots:
+                parts = urlsplit(self.base_url)
+                robots_url = f'{parts.scheme}://{parts.netloc}/robots.txt'
+                try:
+                    with self.archive.session.get(robots_url, headers=self._HEADERS, timeout=self.timeout) as response:
+                        if response.status_code == 200:
+                            parser = RobotFileParser(robots_url)
+                            parser.parse(response.text.splitlines())
+                            self._robots = parser
+                except requests.RequestException:
+                    # The upstream crawler proceeds when robots.txt is unavailable.
+                    self._robots = None
             pages, observations = sitemap_pages(self)
             store.data['discovery'] = {'sitemaps': observations, 'sitemap_pages': pages}
             for url in pages:
@@ -80,14 +95,12 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             store.save()
 
         def _same_domain(self, url):
-            # Preserve the inspected crawler's host policy, narrowed to the
-            # authorized origin so alternate ports cannot expand crawl scope.
-            return super()._same_domain(url) and (urlsplit(url).scheme, urlsplit(url).netloc) == (urlsplit(self.base_url).scheme, urlsplit(self.base_url).netloc)
+            # Alternate schemes and ports are outside the authorized page origin.
+            return super()._same_domain(url) and origin(url) == origin(self.base_url)
 
         def _prepare_queue(self):
             super()._prepare_queue()
-            # The original crawler visits before fetching. Our manifest, rather
-            # than that visited flag, determines what is safe to resume.
+            # Upstream marks visits before fetching; only verified pages can resume.
             pending = []
             for url, page in store.data['pages'].items():
                 if page['state'] not in ('validated', 'complete', 'download_validated') or store.verify(page['resources']):
@@ -95,8 +108,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     pending.append(url)
                 else:
                     self.visited.add(url)
-            # Support both the original LIFO crawler and the pinned upstream's
-            # deduplicated FIFO frontier without changing either implementation.
+            # The configured crawler may use a FIFO deque or a LIFO list.
             fifo = hasattr(self.stack, 'popleft')
             existing = list(self.stack) if fifo else list(reversed(self.stack))
             if pending:
@@ -130,8 +142,14 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             start = len(browser.bidi.events)
             try:
                 probe = self.archive.session.head(url, timeout=30, allow_redirects=True)
-                probe.raise_for_status()
-                mime = probe.headers.get('content-type', '').lower()
+                if probe.status_code in (405, 501):
+                    probe.close()
+                    probe = self.archive.session.get(url, timeout=30, stream=True, allow_redirects=True)
+                try:
+                    probe.raise_for_status()
+                    mime = probe.headers.get('content-type', '').lower()
+                finally:
+                    probe.close()
                 if mime and 'html' not in mime and 'xhtml' not in mime:
                     record = self.archive.retrieve(url)
                     record['kind'] = 'download'
@@ -150,7 +168,9 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     return module.FetchResult()
                 browser.navigate(url)
                 meta, body = browser.source(browser.driver.current_url)
+                self.archive.policy.address(meta['url'])
                 record = store.resource(url, body, headers=meta['headers'], source='waterfox-fetch', kind='page')
+                record['final_url'] = meta['url']
                 page['kind'] = 'page'
                 page['final_url'] = meta['url']
                 directory = store.artifact_dir(url)
@@ -218,6 +238,16 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
 
 
 def navigation_validation(store, browser, preview, only_edges=None, *, quiet=False):
+    def route_key(value):
+        parts = urlsplit(value)
+        query = sorted(parse_qsl(parts.query, keep_blank_values=True), key=lambda item: item[0])
+        return parts.path.rstrip('/') or '/', query
+
+    def reached_route(destination):
+        current = urlsplit(browser.driver.current_url)
+        local = urlsplit(preview.origin)
+        return (current.scheme, current.netloc) == (local.scheme, local.netloc) and route_key(browser.driver.current_url) == route_key(destination)
+
     def link_for(destination):
         def locate():
             return browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]&&!a.closest("[inert]")&&getComputedStyle(a).display!=="none"&&getComputedStyle(a).visibility!=="hidden");', destination)
@@ -227,8 +257,7 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
             scroll(browser, 0.5)
             anchor = locate()
         if anchor is None:
-            # Replay already-verified disclosure scenarios to expose links that
-            # do not exist until the menu or panel has been opened.
+            # Some links exist only after a verified disclosure action.
             for interaction in page.get('validation', {}).get('interactions', []):
                 scenario = interaction.get('scenario')
                 if not interaction.get('passed') or not scenario:
@@ -261,8 +290,7 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
         local_url = preview.origin + public_url(url, store.data['target'])
         browser.viewport(1440, 900)
         browser.navigate(local_url)
-        # Verify every internal link as an HTTP route. Click each page-to-page
-        # edge separately to exercise client-side routers as well as refresh.
+        # HTTP checks alone do not exercise client-side route transitions.
         anchors = browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]"),a=>({href:a.href,text:a.innerText}));')
         unique = list(dict.fromkeys(item['href'] for item in anchors if item['href'].startswith(preview.origin + '/')))
         for link in page['links']:
@@ -277,8 +305,8 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
             remaining.discard((url, destination))
             event_start = len(browser.bidi.events)
             parts = urlsplit(destination)
-            source_url = store.data['target'].rstrip('/') + parts.path
-            target_page = next((p for u, p in store.data['pages'].items() if urlsplit(u).path.rstrip('/') == parts.path.rstrip('/')), None)
+            target_page = next((p for u, p in store.data['pages'].items() if route_key(u) == route_key(destination)), None)
+            expected_destination = preview.origin + public_url(target_page['final_url'], store.data['target']) if target_page and target_page.get('final_url') else destination
             response = requests.get(destination.split('#')[0], timeout=60)
             result = {'from': url, 'to': destination, 'http_status': response.status_code, 'passed': response.status_code == 200}
             if parts.fragment:
@@ -291,7 +319,7 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
                         time.sleep(0.7)
                         result['anchor_exists'] = browser.driver.execute_script('return !!document.getElementById(arguments[0])', parts.fragment)
                         result['passed'] &= result['anchor_exists']
-                        result['anchor_reached'] = urlsplit(browser.driver.current_url).fragment == parts.fragment
+                        result['anchor_reached'] = urlsplit(browser.driver.current_url).fragment == parts.fragment and reached_route(expected_destination)
                         result['passed'] &= result['anchor_reached']
                 except Exception as error:
                     result['passed'] = False
@@ -304,12 +332,10 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
                     browser.settle()
                     result['rendered_title'] = browser.driver.title
                     result['passed'] &= browser.driver.title == target_page.get('title')
-                    result['route_reached'] = urlsplit(browser.driver.current_url).path.rstrip('/') == parts.path.rstrip('/')
+                    result['route_reached'] = reached_route(expected_destination)
                     result['passed'] &= result['route_reached']
                     baseline = json.loads((store.artifact_dir(target_page['url']) / 'baseline.json').read_text(encoding='utf-8'))[0]['snapshot']
-                    # A same-route link may preserve the current scroll state.
-                    # Establish the baseline's top position before comparing
-                    # rendered content and responsive typography.
+                    # Same-route links may retain scroll; the baseline starts at top.
                     scroll(browser, 0)
                     reached = snapshot(browser)
                     result['content_checks'] = {'text': reached['text'] == baseline['text'], 'headings': reached['headings'] == baseline['headings'], 'images': not reached['brokenImages']}
@@ -317,7 +343,7 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
                     result['passed'] &= result['content_passed']
                     browser.driver.refresh()
                     browser.settle()
-                    result['refresh_passed'] = browser.driver.title == target_page.get('title')
+                    result['refresh_passed'] = browser.driver.title == target_page.get('title') and reached_route(expected_destination)
                     result['passed'] &= result['refresh_passed']
                 except Exception as error:
                     result['passed'] = False
@@ -342,25 +368,42 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
     return store.data['integration']
 
 
-def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None, respect_robots=True, checkpoint_every=1, quiet=False):
+def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None, respect_robots=True, checkpoint_every=1, quiet=False, authorized_resource_origins=None):
     if checkpoint_every < 0:
         raise ValueError('--checkpoint-every must be a non-negative integer')
     module = load_crawler(crawler_directory)
     target = module.WebCrawler._normalize_url(target)
     store = Store(output, target, crawler_identity(crawler_directory))
-    store.data['policy'] = {'page_host': urlsplit(target).netloc, 'respect_robots': respect_robots, 'checkpoint_every': checkpoint_every, 'quiet': quiet, 'volatile_static_query': ['_rsc'], 'allowed_visual_ratio': allowed_ratio, 'viewports': viewports or [[1440, 900], [390, 844]]}
+    policy = {'page_host': urlsplit(target).netloc, 'respect_robots': respect_robots, 'checkpoint_every': checkpoint_every, 'quiet': quiet, 'volatile_static_query': ['_rsc'], 'allowed_visual_ratio': allowed_ratio, 'viewports': viewports or [[1440, 900], [390, 844]]}
+    effective_scenarios = store.data.get('scenarios', {}) if scenarios is None else scenarios
+    previous_policy = store.data.get('policy', {})
+    policy['authorized_resource_origins'] = (previous_policy.get('authorized_resource_origins', [])
+        if authorized_resource_origins is None else authorized_resource_origins)
+    stricter_tolerance = previous_policy.get('allowed_visual_ratio') is None or allowed_ratio < previous_policy['allowed_visual_ratio']
+    if (previous_policy.get('viewports') != policy['viewports'] or stricter_tolerance
+            or store.data.get('scenarios', {}) != effective_scenarios):
+        for page in store.data['pages'].values():
+            if page.get('kind') != 'download' and page['state'] in ('validated', 'complete'):
+                page['state'] = 'discovered'
+                page['validation'].update(passed=False, stale=True)
+        if 'integration' in store.data:
+            store.data['integration'].update(passed=False, stale=True)
+    store.data['policy'] = policy
     store.data['status'] = 'running'
-    store.data['scenarios'] = scenarios or store.data.get('scenarios', {})
-    # Each output is a standalone, buildless npm project as well as a checkpoint.
-    # No target-specific component code is generated.
+    store.data.pop('error', None)
+    store.data['scenarios'] = effective_scenarios
     (store.root / 'package.json').write_text(json.dumps({'name': 'doppelgng-reconstruction', 'private': True, 'type': 'module', 'scripts': {'dev': 'node server.mjs --manifest manifest.json'}}, indent=2), encoding='utf-8')
     shutil.copyfile(Path(__file__).resolve().parents[1] / 'server.mjs', store.root / 'server.mjs')
+    shutil.copyfile(Path(__file__).resolve().parents[1] / 'LICENSE', store.root / 'DOPPELGNG_LICENSE.txt')
     store.save()
     atomic_json(Path('.doppelgng/current.json'), {'manifest': str(store.path)})
-    with Preview(store, port) as preview, Waterfox(store.root / 'artifacts') as browser:
+    with incomplete_on_failure(store), Preview(store, port) as preview, Waterfox(store.root / 'artifacts') as browser:
         store.data['browser'] = browser.identity
         adapter = build_adapter(module, store, browser, preview, viewports=store.data['policy']['viewports'], allowed_ratio=allowed_ratio, scenarios=store.data['scenarios'], respect_robots=respect_robots, checkpoint_every=checkpoint_every, quiet=quiet)
-        adapter.crawl()
-        navigation_validation(store, browser, preview, quiet=quiet)
+        try:
+            adapter.crawl()
+            navigation_validation(store, browser, preview, quiet=quiet)
+        finally:
+            adapter.archive.session.close()
     print(json.dumps({'status': store.data['status'], 'pages': len(store.data['pages']), 'resources': len(store.data['resources']), 'manifest': str(store.path)}, indent=2), flush=True)
     return store

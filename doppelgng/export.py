@@ -33,8 +33,6 @@ def export_project(store: Store, destination=None):
     if partial.exists():
         raise ValueError(f'An unfinished export already exists: {partial}')
     target.parent.mkdir(parents=True, exist_ok=True)
-    # Both the staging folder and final folder resolve inside the explicit
-    # destination parent. No existing folder is overwritten or deleted.
     parent = target.parent.resolve()
     if partial.resolve().parent != parent or target.resolve().parent != parent:
         raise ValueError('Export path escapes the destination parent')
@@ -44,6 +42,7 @@ def export_project(store: Store, destination=None):
             shutil.copytree(store.root / name, partial / name)
     for name in ('manifest.json', 'package.json', 'server.mjs'):
         shutil.copy2(store.root / name, partial / name)
+    shutil.copy2(Path(__file__).resolve().parents[1] / 'LICENSE', partial / 'DOPPELGNG_LICENSE.txt')
     copied = Store(partial)
     if copied.verify(list(copied.data['resources'])):
         raise ValueError('Copied resource integrity failed; the staging folder was retained for diagnosis')

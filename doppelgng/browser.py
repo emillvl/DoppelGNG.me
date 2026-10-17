@@ -1,4 +1,4 @@
-"""Headless Waterfox and a lossless browser-protocol event recorder."""
+"""Waterfox sessions and browser-protocol event collection."""
 from __future__ import annotations
 
 import base64
@@ -99,8 +99,7 @@ class Waterfox:
             options.add_argument('-headless')
         options.set_capability('webSocketUrl', True)
         options.set_preference('browser.shell.checkDefaultBrowser', False)
-        # StartupOSIntegration creates a Start Menu entry even for ZIP builds.
-        # Keep this runtime private to the tool, including with fresh profiles.
+        # Waterfox otherwise creates a Private Browsing shortcut even in ZIP builds.
         options.set_preference('browser.privateWindowSeparation.enabled', False)
         self.driver = webdriver.Firefox(options=options, service=Service(str(driver), log_output=str(artifacts / 'geckodriver.log')))
         self.driver.set_page_load_timeout(timeout)
@@ -118,8 +117,7 @@ class Waterfox:
         self.settle()
 
     def viewport(self, width, height):
-        # Browser-protocol viewport emulation avoids the native Windows minimum
-        # window width, which otherwise makes real mobile-width checks fail.
+        # Native Windows window widths cannot reach the mobile viewport size.
         context = self.bidi.command('browsingContext.getTree', {})['contexts'][0]['context']
         self.bidi.command('browsingContext.setViewport', {'context': context, 'viewport': {'width': width, 'height': height}, 'devicePixelRatio': 1})
         if self.driver.execute_script('return [innerWidth, innerHeight]') == [width, height]:

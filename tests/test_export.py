@@ -46,6 +46,7 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(target, directory / 'example.test')
             self.assertEqual(Store(target).verify(['https://example.test/']), [])
             self.assertTrue((target / 'package.json').is_file())
+            self.assertEqual((target / 'DOPPELGNG_LICENSE.txt').read_bytes(), (Path(__file__).resolve().parents[1] / 'LICENSE').read_bytes())
             self.assertTrue((store.root / 'manifest.json').is_file())
             with self.assertRaisesRegex(ValueError, 'already exists'):
                 export_project(store, target)

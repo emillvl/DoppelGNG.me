@@ -9,9 +9,10 @@ export function pythonPath() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
   const temporary = path.resolve('.tools/tmp');
-  mkdirSync(temporary, { recursive: true });
+  const verifyOnly = process.argv[2] === '-m' && process.argv[3] === 'doppelgng.bootstrap' && process.argv.slice(4).includes('--offline');
+  if (!verifyOnly) mkdirSync(temporary, { recursive: true });
   const result = spawnSync(pythonPath(), process.argv.slice(2), {
-    stdio: 'inherit', env: { ...process.env, PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1', TMP: temporary, TEMP: temporary, TMPDIR: temporary },
+    stdio: 'inherit', env: { ...process.env, PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1', ...(verifyOnly ? {} : { TMP: temporary, TEMP: temporary, TMPDIR: temporary }) },
   });
   if (result.error) console.error(`Python could not start: ${result.error.message}. Run npm run setup.`);
   process.exit(result.status ?? 1);

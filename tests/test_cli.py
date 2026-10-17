@@ -50,3 +50,17 @@ class CaptureOptionsTests(unittest.TestCase):
                 main(['capture', '--url', 'https://example.test', '-q'])
         self.assertEqual(error.exception.code, 2)
         self.assertIn('--authorized is required', errors.getvalue())
+
+    def test_additional_resource_authorization_is_explicit_and_repeatable(self):
+        origins = ['http://127.0.0.1:4319/', 'https://intranet.test/']
+        with patch('doppelgng.__main__.capture', return_value=SimpleNamespace(data={'status': 'complete'})) as capture, patch('doppelgng.__main__.workspace_lock', return_value=nullcontext()):
+            self.assertEqual(main(['capture', '--url', 'https://example.test/', '--authorized', '--authorize-resource-origin', origins[0], '--authorize-resource-origin', origins[1]]), 0)
+            self.assertEqual(capture.call_args.kwargs['authorized_resource_origins'], origins)
+
+    def test_invalid_additional_authorization_fails_before_workspace_creation(self):
+        for url in ('file:///private', 'http://user:password@localhost/', 'http://localhost:invalid/'):
+            with self.subTest(url=url), redirect_stderr(io.StringIO()), patch('doppelgng.__main__.workspace_lock') as lock:
+                with self.assertRaises(SystemExit) as error:
+                    main(['capture', '--url', 'https://example.test/', '--authorized', '--authorize-resource-origin', url])
+                self.assertEqual(error.exception.code, 2)
+                lock.assert_not_called()
