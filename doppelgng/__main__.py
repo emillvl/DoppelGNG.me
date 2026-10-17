@@ -11,6 +11,7 @@ from .storage import Store, workspace_lock
 from .validation import local_validate, interaction_check
 from .reconstruct import public_url
 from .export import default_output, export_project
+from .dependencies import default_crawler
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
     run = sub.add_parser('capture', help='Discover, extract, reconstruct, and validate every reachable in-scope page')
     run.add_argument('--url', required=True)
     run.add_argument('--authorized', action='store_true', help='Confirm you own this website or are authorized to reproduce it')
-    run.add_argument('--crawler', default=os.environ.get('DOPPELGNG_CRAWLER', str(Path.home() / 'Desktop' / 'WebCrawler')))
+    run.add_argument('--crawler', default=str(default_crawler()), help='Optional crawler override; defaults to the pinned project-local crawler installed by npm run setup')
     run.add_argument('--output')
     run.add_argument('--port', type=int, default=4173)
     run.add_argument('--visual-tolerance', type=float, default=0.01)

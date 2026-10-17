@@ -9,11 +9,12 @@ from doppelgng.archive import ExtractionFailure
 from doppelgng.crawler import load_crawler
 from doppelgng.pipeline import build_adapter, navigation_validation
 from doppelgng.storage import Store
+from doppelgng.dependencies import default_crawler
 
 
 class PipelineGates(unittest.TestCase):
     def setUp(self):
-        self.module = load_crawler(os.environ.get('DOPPELGNG_CRAWLER', Path.home() / 'Desktop' / 'WebCrawler'))
+        self.module = load_crawler(default_crawler())
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.store = Store(self.temporary.name, 'https://example.test/')
@@ -27,7 +28,8 @@ class PipelineGates(unittest.TestCase):
         self.store.page('https://example.test/next/')
         self.crawler.visited.add(first['url'])
         self.crawler._prepare_queue()
-        self.assertEqual(self.crawler.stack.pop(), first['url'])
+        next_page = self.crawler.stack.popleft() if hasattr(self.crawler.stack, 'popleft') else self.crawler.stack.pop()
+        self.assertEqual(next_page, first['url'])
         self.assertNotIn(first['url'], self.crawler.visited)
 
     def test_extraction_failure_keeps_manifest_incomplete(self):

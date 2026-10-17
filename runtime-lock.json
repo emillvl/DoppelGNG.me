@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "crawler": {
+    "repository": "https://github.com/emillvl/webcrawler.git",
+    "revision": "435a46d903ed83105728b5f0c4ec11f45ee9c342",
+    "files": {
+      "webcrawler.py": "6d9ecebb372fc242073324bbd7e5a6855bf20958b76ba27a3f3ea6c0daf9c4b4",
+      "signatures.py": "9a50d534b6db4a87cb8b406e1f1cf0353fd93d5fa4651229c475acd1c2a4bf25",
+      "requirements.txt": "1e5dda778c2cc8188789ba6cb768322eb6821278b40c51700da972e29e0b1add",
+      "requirements-optional.txt": "17c1748576ffa23a62415b26a4c8692fc18fee1b79fd425518075e4351ff3bb6",
+      "README.md": "12c4be551ff584ea442ab3e567d5f59d69d78dd07660d663c749ea60e4e91030",
+      "LICENSE": "4f54f278ea55b8a135e296e6c31f442db82cf6b18ed01569861b46833750b97d",
+      "tests/test_core.py": "a5669088a94a0113147e1f86bb51080ffc1892aa1c72aefd9fd88781eeb58302"
+    }
+  },
+  "windows-x64": {
+    "waterfox": {
+      "version": "6.7.6",
+      "url": "https://cdn.waterfox.com/waterfox/releases/6.7.6/WINNT_x86_64/Waterfox%20Setup%206.7.6.exe",
+      "sha512": "7b0d04383f5f1b15fafc4c9ba9cf787ce2682eb03eade41606c36cf745709845b6bc28e60824e10bc95055a198bc724f5034f75fb0886d32b9b6ce206d56c105",
+      "source_url": "https://github.com/BrowserWorks/waterfox/tree/1de140d004d3fd63a2b63564b2ed4ea26f0adc97"
+    },
+    "geckodriver": {
+      "version": "0.37.1",
+      "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-win64.zip",
+      "sha256": "dfed9315abe8d2fbc1b6161a2ee8002452e79cf05ee92fdc653a4e26bc35edd8",
+      "license_url": "https://raw.githubusercontent.com/mozilla/geckodriver/v0.37.1/LICENSE",
+      "license_sha256": "ceddacc7e73488493af8e3b48aa450e25e9f2066b344a5bfa8b32a7c3a4b9ba3"
+    }
+  }
+}

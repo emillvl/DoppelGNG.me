@@ -83,12 +83,19 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     pending.append(url)
                 else:
                     self.visited.add(url)
-            # The inspected crawler uses a stack. Resume unfinished pages in
-            # discovery order so a failed current page is retried first.
+            # Support both the original LIFO crawler and the pinned upstream's
+            # deduplicated FIFO frontier without changing either implementation.
+            fifo = hasattr(self.stack, 'popleft')
+            existing = list(self.stack) if fifo else list(reversed(self.stack))
             if pending:
-                self.stack = list(reversed(list(dict.fromkeys([*pending, *reversed(self.stack)]))))
+                ordered = list(dict.fromkeys([*pending, *existing]))
+                self.stack = type(self.stack)(ordered) if fifo else list(reversed(ordered))
+                if hasattr(self, 'queued'):
+                    self.queued = set(ordered)
             if not self.stack and not store.data['pages']:
-                self.stack = [self.base_url]
+                self.stack.append(self.base_url)
+                if hasattr(self, 'queued'):
+                    self.queued.add(self.base_url)
 
         def _can_fetch(self, url):
             allowed = super()._can_fetch(url)

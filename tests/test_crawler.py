@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from doppelgng.crawler import crawler_identity, load_crawler
+from doppelgng.dependencies import default_crawler
 
 TEST_TEMP = Path(__file__).resolve().parents[1] / '.tools' / 'test-temp'
 TEST_TEMP.mkdir(parents=True, exist_ok=True)
@@ -13,7 +14,7 @@ tempfile.tempdir = str(TEST_TEMP)
 class ExistingCrawlerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.directory = Path(os.environ.get("DOPPELGNG_CRAWLER", Path.home() / "Desktop" / "WebCrawler"))
+        cls.directory = default_crawler()
         cls.module = load_crawler(cls.directory)
 
     def test_original_source_is_not_modified_by_adapter(self):
@@ -36,7 +37,7 @@ class ExistingCrawlerTests(unittest.TestCase):
             self.assertTrue(crawler.save_state())
             resumed = self.module.WebCrawler('https://example.com', output_dir=directory, quiet=True)
             self.assertTrue(resumed.load_state())
-            self.assertEqual(resumed.stack, ['https://example.com/next'])
+            self.assertEqual(list(resumed.stack), ['https://example.com/next'])
 
     def test_missing_crawler_is_explicit_error(self):
         with tempfile.TemporaryDirectory() as directory:
