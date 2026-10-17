@@ -41,6 +41,22 @@ Open the printed local address. Internal pages, scripts, fonts, images, captured
 
 Use `--output <directory>` to keep multiple captures. Repeat the same capture command to resume; intact validated pages are retained, and failed or corrupt pages are retried. Separate workspaces cannot overwrite each other while an operation owns the workspace lock. The crawler records same-origin links from original HTML, rendered DOM, and sitemap indexes; scrolling discovers lazy assets and browser-driven prefetch dependencies.
 
+These crawler controls are optional additions to the capture command. The existing command works without any of them:
+
+```text
+npm run crawl -- --url https://your-authorized-site.example --authorized --ignore-robots --checkpoint-every 25 -q
+npm run crawl -- --help
+```
+
+| Option | Behavior |
+| --- | --- |
+| `--ignore-robots` | Skip loading and applying robots.txt rules for this capture. |
+| `--respect-robots` | Apply robots.txt rules; this is the default. Cannot be combined with `--ignore-robots`. |
+| `--checkpoint-every N` | Save the upstream crawler's state every N processed pages. Default: 1. Use 0 to disable periodic checkpoint saves. Final saves, RAM-triggered offloading, and reconstruction recovery records remain enabled. |
+| `-q`, `--quiet` | Suppress per-page extraction, validation, navigation progress, and the upstream crawler report. The final JSON result and errors remain visible. Use `npm --silent run crawl -- ... -q` to suppress npm's own command banner too. |
+
+These choices are recorded in the capture manifest's `policy`. Repeat the flags when resuming a capture. Omitting them preserves the existing defaults: respect robots.txt, checkpoint every page, and show progress.
+
 `--viewport 1440x900 --viewport 390x844` selects exact content viewport sizes. Defaults are those two sizes. Original and local screenshots are compared at the top, middle, and bottom of every page. Default failure threshold is more than 1% of pixels differing by more than 25 in any RGB channel; measured differences and diff images are retained. This tolerance is configurable with `--visual-tolerance`, and recorded in the manifest.
 
 ```text
