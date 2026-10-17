@@ -57,6 +57,11 @@ This file contains factual milestone evidence. Full captured website data and br
 - Resumed that blocked capture with `--ignore-robots --checkpoint-every 3 -q`. It completed **4 HTML pages and 1 download**, archived **10 resources**, and passed **24 desktop/mobile screenshot comparisons and all 11 navigation checks**, including the menu-revealed route. Stdout contained exactly one final JSON result, stderr was empty, and the process exited 0. The manifest recorded all three selected settings. The original preview selection was restored and the test server was stopped.
 - Rebuilt the Windows distribution with the optional flags and documentation: **117 application and runtime files**, **175,991,649 bytes**. SHA256: `cb5b721ec4444b1b9b18ffac9023d623a5c661623cd2eed29e2d9df1dc54f32f`. The archive's CLI, pipeline, CLI tests, and README were verified to match the tested working-tree files.
 
+## Product-only terminal output
+
+- Suppressed the upstream crawler's banners, checkpoint chatter, findings, and unconditional completion report in all modes. DoppelGNG.me retains its own extraction, verification, navigation progress, final result, and errors.
+- **47 Python tests and 2 Node HTTP tests passed**. A real inherited crawl loop with a simulated extraction failure printed only branded product progress, propagated the failure, retained an incomplete manifest, and saved its internal checkpoint without announcing completion.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.

@@ -60,8 +60,16 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             self.archive = Archive(store, browser)
 
         def _print_summary(self):
+            # Only reconstruction validation can determine product completion.
+            pass
+
+        def _say(self, message=''):
+            # Keep upstream checkpointing internal, without its report or banner.
+            pass
+
+        def _progress(self, message):
             if not self.quiet:
-                super()._print_summary()
+                print(f'[doppelgng.me] {message}', flush=True)
 
         def _load_robots(self):
             super()._load_robots()
@@ -118,7 +126,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             page['state'] = 'extracting'
             page.pop('error', None)
             store.save()
-            self._say(f'[extract] {url}')
+            self._progress(f'Extracting {url}')
             start = len(browser.bidi.events)
             try:
                 probe = self.archive.session.head(url, timeout=30, allow_redirects=True)
@@ -172,7 +180,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     raise ExtractionFailure(f'Reconstruction integrity failed: {broken}')
                 page['state'] = 'reconstructed'
                 store.save()
-                self._say(f'[validate] {url} ({len(page["resources"])} resources)')
+                self._progress(f'Validating {url} ({len(page["resources"])} resources)')
                 local_url = preview.origin + public_url(url, store.data['target'])
                 validation = local_validate(browser, url, local_url, directory, baselines, allowed_ratio=allowed_ratio)
                 def capture_interaction_resources(events):
@@ -193,7 +201,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 page['state'] = 'validated' if validation['passed'] else 'failed'
                 if not validation['passed']:
                     raise ExtractionFailure(f'Page validation failed: {url}: {validation["errors"]}')
-                self._say(f'[passed] {url}')
+                self._progress(f'Verified {url}')
                 store.save()
                 return module.FetchResult(links=links, html=original)
             except BaseException as error:
@@ -259,7 +267,7 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
             if destination.split('#')[0] not in {item.split('#')[0] for item in unique}:
                 unique.append(destination)
         if not quiet:
-            print(f'[integration] {url} ({len(unique)} internal links)', flush=True)
+            print(f'[doppelgng.me] Checking navigation: {url} ({len(unique)} internal links)', flush=True)
         for destination in unique:
             if edges is not None and (url, destination) not in edges:
                 continue

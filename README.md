@@ -53,9 +53,11 @@ npm run crawl -- --help
 | `--ignore-robots` | Skip loading and applying robots.txt rules for this capture. |
 | `--respect-robots` | Apply robots.txt rules; this is the default. Cannot be combined with `--ignore-robots`. |
 | `--checkpoint-every N` | Save the upstream crawler's state every N processed pages. Default: 1. Use 0 to disable periodic checkpoint saves. Final saves, RAM-triggered offloading, and reconstruction recovery records remain enabled. |
-| `-q`, `--quiet` | Suppress per-page extraction, validation, navigation progress, and the upstream crawler report. The final JSON result and errors remain visible. Use `npm --silent run crawl -- ... -q` to suppress npm's own command banner too. |
+| `-q`, `--quiet` | Suppress DoppelGNG.me's extraction, validation, and navigation progress. The final JSON result and errors remain visible. Use `npm --silent run crawl -- ... -q` to suppress npm's own command banner too. |
 
 These choices are recorded in the capture manifest's `policy`. Repeat the flags when resuming a capture. Omitting them preserves the existing defaults: respect robots.txt, checkpoint every page, and show progress.
+
+Terminal output belongs to DoppelGNG.me. The upstream crawler's banners, state-save messages, security findings, and completion report are suppressed in every mode; its checkpoint files remain internal recovery data. A product completion result is printed only after reconstruction and validation finish.
 
 `--viewport 1440x900 --viewport 390x844` selects exact content viewport sizes. Defaults are those two sizes. Original and local screenshots are compared at the top, middle, and bottom of every page. Default failure threshold is more than 1% of pixels differing by more than 25 in any RGB channel; measured differences and diff images are retained. This tolerance is configurable with `--visual-tolerance`, and recorded in the manifest.
 
