@@ -18,7 +18,7 @@ from .discovery import sitemap_pages
 from .reconstruct import reconstruct, public_url
 from .resources import html_process
 from .storage import Store, atomic_json, now
-from .validation import record_baseline, local_validate, interaction_check, snapshot
+from .validation import record_baseline, local_validate, interaction_check, snapshot, scroll
 
 
 class Preview:
@@ -195,14 +195,13 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
     return ReconstructionCrawler()
 
 
-def navigation_validation(store, browser, preview):
+def navigation_validation(store, browser, preview, only_edges=None):
     def link_for(destination):
         def locate():
             return browser.driver.execute_script('return Array.from(document.querySelectorAll("a[href]")).find(a=>a.href===arguments[0]&&!a.closest("[inert]")&&getComputedStyle(a).display!=="none"&&getComputedStyle(a).visibility!=="hidden");', destination)
         anchor = locate()
         if anchor is None:
             # Scroll-activated navigation is intentionally inert at page entry.
-            from .validation import scroll
             scroll(browser, 0.5)
             anchor = locate()
         if anchor is None:
@@ -229,9 +228,13 @@ def navigation_validation(store, browser, preview):
         time.sleep(0.5)
         return anchor
 
-    checks = []
+    edges = set(only_edges) if only_edges is not None else None
+    remaining = set(edges or ())
+    checks = [record for record in store.data.get('integration', {}).get('links', []) if (record['from'], record['to']) not in edges] if edges is not None else []
     for url, page in list(store.data['pages'].items()):
         if page.get('kind') != 'page' or page['state'] not in ('validated', 'complete'):
+            continue
+        if edges is not None and not any(source == url for source, _ in edges):
             continue
         local_url = preview.origin + public_url(url, store.data['target'])
         browser.viewport(1440, 900)
@@ -246,6 +249,9 @@ def navigation_validation(store, browser, preview):
                 unique.append(destination)
         print(f'[integration] {url} ({len(unique)} internal links)', flush=True)
         for destination in unique:
+            if edges is not None and (url, destination) not in edges:
+                continue
+            remaining.discard((url, destination))
             event_start = len(browser.bidi.events)
             parts = urlsplit(destination)
             source_url = store.data['target'].rstrip('/') + parts.path
@@ -278,8 +284,13 @@ def navigation_validation(store, browser, preview):
                     result['route_reached'] = urlsplit(browser.driver.current_url).path.rstrip('/') == parts.path.rstrip('/')
                     result['passed'] &= result['route_reached']
                     baseline = json.loads((store.artifact_dir(target_page['url']) / 'baseline.json').read_text(encoding='utf-8'))[0]['snapshot']
+                    # A same-route link may preserve the current scroll state.
+                    # Establish the baseline's top position before comparing
+                    # rendered content and responsive typography.
+                    scroll(browser, 0)
                     reached = snapshot(browser)
-                    result['content_passed'] = reached['text'] == baseline['text'] and reached['headings'] == baseline['headings'] and not reached['brokenImages']
+                    result['content_checks'] = {'text': reached['text'] == baseline['text'], 'headings': reached['headings'] == baseline['headings'], 'images': not reached['brokenImages']}
+                    result['content_passed'] = all(result['content_checks'].values())
                     result['passed'] &= result['content_passed']
                     browser.driver.refresh()
                     browser.settle()
@@ -295,7 +306,10 @@ def navigation_validation(store, browser, preview):
                     browser_failures.append({'method': event['method'], 'url': params.get('response', params.get('request', {})).get('url'), 'message': params.get('text', params.get('errorText')), 'status': params.get('response', {}).get('status')})
             result['browser_failures'] = browser_failures
             result['passed'] &= not browser_failures
+            result['checked_at'] = now()
             checks.append(result)
+    for source, destination in sorted(remaining):
+        checks.append({'from': source, 'to': destination, 'passed': False, 'error': 'Requested navigation edge was not present in the current page inventory', 'checked_at': now()})
     store.data['integration'] = {'checked_at': now(), 'passed': all(check['passed'] for check in checks), 'links': checks}
     for page in store.data['pages'].values():
         if page['state'] in ('validated', 'download_validated') and store.data['integration']['passed']:

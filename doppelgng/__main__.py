@@ -64,9 +64,9 @@ def main():
             print(json.dumps({'project': str(destination), 'start': 'npm run dev', 'status': store.data['status']}, indent=2))
             return 0
         if args.command == 'validate':
-            store.data['status'] = 'validating'
-            store.save()
             with workspace_lock(output), Preview(store, args.port) as preview, Waterfox(store.root / 'artifacts') as browser:
+                store.data['status'] = 'validating'
+                store.save()
                 for url, page in store.data['pages'].items():
                     if page.get('kind') != 'page':
                         if store.verify(page['resources']):
