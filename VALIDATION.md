@@ -36,6 +36,18 @@ This file contains factual milestone evidence. Full captured website data and br
 - A nested article in the delivered folder passed an additional six Waterfox desktop/mobile screenshot, content, font, network, and refresh checks, with no browser errors.
 - No remaining discrepancy was observed within these tested routes and states. This is not evidence for unexercised backend services or every possible website.
 
+## Managed dependencies and Windows distribution
+
+- Managed crawler: sparse checkout of `https://github.com/emillvl/webcrawler` at pinned revision `435a46d903ed83105728b5f0c4ec11f45ee9c342`. A cold fetch and a second cached setup both succeeded. Selected source, requirements, documentation, license, and upstream tests are verified against `runtime-lock.json`.
+- Project regression suite: **36 Python tests and 2 Node HTTP tests passed**. The pinned upstream crawler suite also passed **33 tests**: **71 tests in total**. The earlier crawler-integration milestone additionally passed its 28 Python and 2 Node tests using both the managed default and the original external crawler override.
+- A complete live regression capture using the managed default completed **4 HTML pages and 1 download**, archived **10 resources**, and passed **24 desktop/mobile screenshot comparisons and 11 internal navigation checks**, including a route revealed by opening a menu. No explicit `--crawler` path was supplied.
+- The private runtime is pinned to official Waterfox 6.7.6 and geckodriver 0.37.1. Publisher archive digests were checked before extraction. A manifest verifies **66 runtime and notice files**, including the complete 64-file browser core. Offline checks pass; missing DLLs, altered bytes, and unexpected browser files fail explicitly.
+- Source setup ran twice successfully. The second run reused verified Python dependencies, crawler files, and browser files. Browser executables and their supporting libraries remain project-local; no system Waterfox installation was used.
+- Built and verified `dist/doppelgng.me-windows-x64.zip`: **116 application and runtime files**, **175,988,892 bytes**. SHA256: `f73f410bf818fe46da74c9c6a28b92a5e2f23b30c3380a9bf407ea559ef75e02`. Each archived file was read back and checked against the embedded bundle manifest. A separate checksum file accompanies the ZIP.
+- Extracted this ZIP into a clean project folder. `npm install`, fresh `npm run setup`, repeated setup, all 38 project tests, and all 33 upstream tests passed there. The packaged crawler and browser were reused without cloning or unpacking another browser.
+- The extracted package's real headless Waterfox started successfully, rendered a test document, established exact 1280x800 and 390x844 content viewports, and enabled browser response-body collection. Dependency network requests and Git calls were forced to fail throughout this smoke check; neither was attempted.
+- The distribution excludes Git metadata, virtual environments, browser profiles, installer archives, settings, and captured websites. Recipients still need Node.js 22+ and Python 3.10+; Python packages install on first setup. The prepared browser bundle supports Windows x64.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.

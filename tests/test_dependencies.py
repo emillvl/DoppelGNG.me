@@ -40,3 +40,11 @@ class CrawlerProvisioningTests(unittest.TestCase):
     def test_packaged_default_is_relative_to_the_project(self):
         with patch.dict('os.environ', {}, clear=True):
             self.assertEqual(default_crawler(Path('product')).parts[-3:], ('product', '.tools', 'webcrawler'))
+
+    def test_offline_package_with_missing_crawler_does_not_clone(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'runtime-lock.json').write_text(json.dumps({'crawler': {'repository': 'unused', 'revision': 'a' * 40, 'files': {}}}))
+            with patch('doppelgng.dependencies._git', side_effect=AssertionError('No network')):
+                with self.assertRaisesRegex(RuntimeError, 'packaged crawler is missing'):
+                    ensure_crawler(root, offline=True)
