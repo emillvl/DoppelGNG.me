@@ -1,6 +1,12 @@
 .venv/
 .tools/
 .doppelgng/
+# Generated output folders named after website domains and local test hosts.
+/[!.]*.*/
+/localhost/
+/localhost_*/
+/_*/
+# Older capture folders remain excluded.
 *+copied/
 *+copied.partial/
 node_modules/

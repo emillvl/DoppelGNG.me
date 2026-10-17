@@ -90,6 +90,14 @@ This file contains factual milestone evidence. Full captured website data and br
 - Rebuilt and read back the Windows ZIP: **120 application/runtime files**, **175,997,888 bytes**, SHA256 `33744f1b6b8601b1341085dde829ea8e452d4c692fc9a47d1d80d4ee08407424`. Fresh extraction had no compression receipt and used **543,988,971 bytes** for the browser core. `npm install` and fresh setup succeeded, automatically reducing core storage to **175,766,591 bytes**. Repeated setup reused LZX, and offline runtime verification passed. This package includes the tested source and excludes test artifacts and storage receipts.
 - Retained measurement records, logs, and browser evidence under ignored `.tools/`; removed the temporary delivery project after validation. Also removed the older, hash-verified duplicate test browser core, which had occupied another **543,988,971 bytes**. The main runtime, delivery ZIP, and existing copied websites were preserved.
 
+## Domain-named output folders
+
+- Default capture and export folders now use each target's actual domain, without the `+copied` suffix: `https://example.com/page` becomes `example.com`, while `https://www.another.org/catalogue` becomes `www.another.org`. Local development ports retain Windows-safe names such as `localhost_4319`. Custom output and destination options remain available.
+- Windows device names are escaped, and dot-only hostnames cannot select the current or parent directory. A capture refuses an unrelated nonempty output folder before adding files or overwriting its project configuration. Default export still verifies every resource and refuses existing destinations.
+- **63 Python and 2 Node HTTP tests passed (65 project tests)**, including actual-domain naming, CLI forwarding, default export byte integrity, existing-folder protection, and Windows path cases. Git exclusion checks covered domain folders, local hosts, partial exports, and older suffixed folders while keeping source and CI paths visible.
+- All **126 protected existing copied-site files** retained their hashes. Existing capture folders and the preview selection were preserved; older captures can be resumed by passing their existing folder with `--output`.
+- Rebuilt and read back the delivery ZIP: **120 application/runtime files**, **175,998,577 bytes**, SHA256 `34d6982f51773111c5a5dfcbbe15451bfede9a2013d539df6759e723adc7d619`. Packaging tests exclude both domain-named and older suffixed website outputs.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.

@@ -53,9 +53,11 @@ class Store:
     def __init__(self, directory: str | Path, target=None, crawler=None):
         self.root = Path(directory).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.path = self.root / 'manifest.json'
+        if not self.path.exists() and any(file.name != 'capture.lock' for file in self.root.iterdir()):
+            raise ValueError(f'The output folder already contains unrelated files; choose another --output directory: {self.root}')
         for name in ('raw', 'site', 'artifacts', 'crawler'):
             (self.root / name).mkdir(exist_ok=True)
-        self.path = self.root / 'manifest.json'
         if self.path.exists():
             self.data = json.loads(self.path.read_text(encoding='utf-8'))
             if target and self.data['target'] != target:
