@@ -41,9 +41,11 @@ npm run status
 npm run dev
 ```
 
-Open the printed local address. Internal pages, scripts, fonts, images, captured GET data, and downloads are served from the archive. The replay server has no network fallback. By default, a capture creates a separate `<website>+copied` directory in the current folder, for example `example.com+copied`. Each output is a standalone npm project: change into that directory, run `npm install`, then `npm run dev`.
+Open the printed local address. Internal pages, scripts, fonts, images, captured GET data, and downloads are served from the archive. The replay server has no network fallback. By default, a capture creates a separate directory named after the actual website domain, for example `example.com` or `www.another.org`. Each output is a standalone npm project: change into that directory, run `npm install`, then `npm run dev`. An unrelated existing folder is never overwritten.
 
 Use `--output <directory>` to keep multiple captures. Repeat the same capture command to resume; intact validated pages are retained, and failed or corrupt pages are retried. Separate workspaces cannot overwrite each other while an operation owns the workspace lock. The crawler records same-origin links from original HTML, rendered DOM, and sitemap indexes; scrolling discovers lazy assets and browser-driven prefetch dependencies.
+
+Existing folders from earlier versions keep their names. Supply their existing path with `--output` to resume them.
 
 These crawler controls are optional additions to the capture command. The existing command works without any of them:
 
@@ -66,7 +68,7 @@ Terminal output belongs to DoppelGNG.me. The upstream crawler's banners, state-s
 `--viewport 1440x900 --viewport 390x844` selects exact content viewport sizes. Defaults are those two sizes. Original and local screenshots are compared at the top, middle, and bottom of every page. Default failure threshold is more than 1% of pixels differing by more than 25 in any RGB channel; measured differences and diff images are retained. This tolerance is configurable with `--visual-tolerance`, and recorded in the manifest.
 
 ```text
-npm run validate -- --output example.com+copied
+npm run validate -- --output example.com
 ```
 
 Validation checks content, typography, image loading, responsive dimensions, link inventory, controls, browser errors, network responses, screenshots, direct route refresh, and internal navigation clicks. Disclosure controls are discovered automatically. Other controls require explicit read-only interaction scenarios, for example:
@@ -88,7 +90,7 @@ To deliver an existing completed capture in a separate folder:
 npm run export -- --output /path/to/capture
 ```
 
-This creates `<website>+copied`, or the folder selected with `--destination`. Export verifies copied resource hashes and refuses to overwrite an existing folder. Incomplete reconstructions cannot be exported as completed projects. Default copied folders remain excluded from Git.
+This creates a folder named after the actual website domain, or the folder selected with `--destination`. Export verifies copied resource hashes and refuses to overwrite an existing folder. Incomplete reconstructions cannot be exported as completed projects. Domain-named output folders remain excluded from Git.
 
 ## Evidence and limits
 

@@ -31,7 +31,7 @@ def build_parser():
     run.add_argument('--url', required=True)
     run.add_argument('--authorized', action='store_true', help='Confirm you own this website or are authorized to reproduce it')
     run.add_argument('--crawler', default=str(default_crawler()), help='Optional crawler override; defaults to the pinned project-local crawler installed by npm run setup')
-    run.add_argument('--output')
+    run.add_argument('--output', help='Capture folder (default: the website domain)')
     run.add_argument('--port', type=int, default=4173)
     run.add_argument('--visual-tolerance', type=float, default=0.01)
     run.add_argument('--scenarios', help='JSON mapping page paths to read-only interaction scenarios')
@@ -48,7 +48,7 @@ def build_parser():
         if command == 'validate':
             child.add_argument('--port', type=int, default=4173)
         if command == 'export':
-            child.add_argument('--destination', help='Delivery folder (default: <website>+copied)')
+            child.add_argument('--destination', help='Delivery folder (default: the website domain)')
     return parser
 
 

@@ -8,10 +8,12 @@ from .storage import Store
 
 
 def default_output(url):
-    host = re.sub(r'[^\w.-]', '_', urlsplit(url).netloc)
+    host = re.sub(r'[^\w.-]', '_', urlsplit(url).netloc).rstrip('.')
     if not host:
         raise ValueError('A website hostname is required for the copied folder name')
-    return Path(host + '+copied')
+    if re.match(r'^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)', host, re.IGNORECASE):
+        host = '_' + host
+    return Path(host)
 
 
 def export_project(store: Store, destination=None):

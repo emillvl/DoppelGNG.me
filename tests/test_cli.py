@@ -24,6 +24,7 @@ class CaptureOptionsTests(unittest.TestCase):
             with self.subTest(flags=flags), patch('doppelgng.__main__.capture', return_value=SimpleNamespace(data={'status': 'complete'})) as capture, patch('doppelgng.__main__.workspace_lock', return_value=nullcontext()):
                 result = main(['capture', '--url', 'https://example.test', '--authorized', *flags])
                 self.assertEqual(result, 0)
+                self.assertEqual(capture.call_args.args[2], 'example.test')
                 self.assertEqual(capture.call_args.kwargs['respect_robots'], robots)
                 self.assertEqual(capture.call_args.kwargs['checkpoint_every'], interval)
                 self.assertEqual(capture.call_args.kwargs['quiet'], quiet)

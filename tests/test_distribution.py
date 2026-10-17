@@ -24,7 +24,7 @@ class DistributionTests(unittest.TestCase):
             (crawler / 'webcrawler.py').write_bytes(b'crawler')
             for name in ('waterfox-provenance.json', 'geckodriver-provenance.json'):
                 (root / '.tools' / name).write_text('{}')
-            for name in ('.env', '.doppelgng/private-page.html', '.tools/waterfox-setup.exe', 'example.test+copied/site/page.html'):
+            for name in ('.env', '.doppelgng/private-page.html', '.tools/waterfox-setup.exe', 'example.test/site/page.html', 'old.example.test+copied/site/page.html'):
                 file = root / name
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.write_text('must remain outside the package')
@@ -34,7 +34,7 @@ class DistributionTests(unittest.TestCase):
                 self.assertIn('DoppelGNG.me/.tools/waterfox/core/xul.dll', names)
                 self.assertIn('DoppelGNG.me/.tools/webcrawler/webcrawler.py', names)
                 self.assertIn('DoppelGNG.me/THIRD_PARTY_NOTICES.md', names)
-                self.assertFalse(any('private-page' in name or '+copied' in name or 'waterfox-setup.exe' in name or name.endswith('/.env') or '/.git/' in name for name in names))
+                self.assertFalse(any('private-page' in name or '/example.test/' in name or '+copied' in name or 'waterfox-setup.exe' in name or name.endswith('/.env') or '/.git/' in name for name in names))
                 manifest = json.loads(archive.read('DoppelGNG.me/bundle-manifest.json'))
                 for name, expected in manifest['files'].items():
                     self.assertEqual(hashlib.sha256(archive.read('DoppelGNG.me/' + name)).hexdigest(), expected['sha256'])
