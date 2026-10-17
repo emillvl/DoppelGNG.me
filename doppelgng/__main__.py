@@ -41,7 +41,7 @@ def build_parser():
     robots.add_argument('--respect-robots', dest='respect_robots', action='store_true', help='Apply robots.txt rules (default)')
     run.set_defaults(respect_robots=True)
     run.add_argument('--checkpoint-every', type=non_negative_int, default=1, metavar='N', help='Save the crawler checkpoint every N pages (default: 1; 0 disables periodic saves). Final saves and reconstruction recovery records remain enabled')
-    run.add_argument('-q', '--quiet', action='store_true', help='Suppress per-page progress and the crawler report; keep the final JSON result and errors')
+    run.add_argument('-q', '--quiet', action='store_true', help='Suppress DoppelGNG.me progress; keep the final JSON result and errors')
     for command in ('status', 'validate', 'export'):
         child = sub.add_parser(command)
         child.add_argument('--output')

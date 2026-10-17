@@ -20,6 +20,8 @@ if(status) fetch('/data.json?v=1').then(r=>r.json()).then(d=>status.textContent=
 if(status){const a=document.createElement('a');a.href='/dynamic/';a.textContent='Dynamic catalogue';document.querySelector('main').append(a);}
 const menu=document.querySelector('#menu');
 if(menu) menu.addEventListener('click',()=>{const p=document.querySelector('#panel');p.hidden=!p.hidden;menu.setAttribute('aria-expanded',String(!p.hidden));if(!p.querySelector('a')){const a=document.createElement('a');a.href='/menu-only/';a.textContent='Expanded menu route';p.append(a);}});
+const resourceParts=["/computed/", "/payload.js"];
+const runtimeScript=document.createElement('script');runtimeScript.src=resourceParts[0]+"version-1"+resourceParts[1];document.head.append(runtimeScript);
 '''
 
 
@@ -39,6 +41,8 @@ class Handler(BaseHTTPRequestHandler):
             mime = 'text/html; charset=utf-8'
         elif route == '/app.js':
             body, mime = SCRIPT.encode(), 'application/javascript'
+        elif route == '/computed/version-1/payload.js':
+            body, mime = b'document.documentElement.dataset.computedAsset="loaded";', 'application/javascript'
         elif route == '/css/site.css':
             body, mime = b'@import "theme.css";body{margin:0;background:#f6f3eb;color:#172522;font:18px Georgia}main{max-width:700px;margin:auto;padding:24px}a{display:block;margin:18px 0}.spacer{height:900px;background:url(../art.svg) no-repeat center bottom}button,summary{cursor:pointer}', 'text/css'
         elif route == '/css/theme.css':

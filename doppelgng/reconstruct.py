@@ -20,7 +20,7 @@ def reconstruct(store, urls):
         mime = record['content_type']
         if any(token in mime for token in ('html', 'css', 'javascript')) or urlsplit(url).path.endswith(('.js', '.mjs')):
             text = raw.decode('utf-8-sig')
-            _, modified = process(text, mime, url, lambda value: public_url(value, store.data['target']))
+            _, modified = process(text, mime, url, lambda value: public_url(value, store.data['target']), known_urls=store.data['resources'])
             body = modified.encode('utf-8')
         else:
             body = raw
