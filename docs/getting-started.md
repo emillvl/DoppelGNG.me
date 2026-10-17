@@ -47,6 +47,8 @@ npm run crawl -- --url https://your-authorized-site.example --authorized
 
 The `--authorized` flag confirms that you own the site or have permission to reproduce it. It is required on every capture invocation, including resume.
 
+For a cookie-protected website with an ordinary HTML password form, add `--login --login-check '#signed-in'` and choose a signed-in marker for that site. Both login fields are prompted without echo. Use a fresh output directory and read the [authentication guide](authentication.md) first. No login session is saved for resume.
+
 The target's scheme, hostname, and port define page scope. Same-origin links from original HTML, rendered DOM, interaction states, and sitemap indexes feed discovery. Scrolling exposes lazy assets and browser prefetches. Subdomains and alternate ports do not automatically become page targets.
 
 By default, output goes into a directory named after the target authority. `https://example.com` produces `example.com/`; `http://127.0.0.1:4318` produces `127.0.0.1_4318/`. The `www` prefix is kept when it is part of the supplied host. Windows-reserved names are prefixed with `_`.

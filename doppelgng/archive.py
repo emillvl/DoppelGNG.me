@@ -42,7 +42,7 @@ class Archive:
         self.max_bytes = max_bytes
         authorized = store.data.get('policy', {}).get('authorized_resource_origins', [])
         self.policy = DestinationPolicy(store.data['target'], authorized)
-        self.session = capture_session(store.data['target'], authorized)
+        self.session = capture_session(store.data['target'], authorized, authentication=store.authentication) if store.authentication else capture_session(store.data['target'], authorized)
         self.session.headers['User-Agent'] = browser.driver.execute_script('return navigator.userAgent')
         self.seen_requests = set()
 

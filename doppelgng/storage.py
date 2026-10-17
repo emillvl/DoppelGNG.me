@@ -61,7 +61,7 @@ def incomplete_on_failure(store):
     try:
         yield
     except BaseException as error:
-        message = str(error) or type(error).__name__
+        message = store.error_message(error)
         store.data.update(status='incomplete', error=message)
         for page in store.data['pages'].values():
             if page['state'] in ('extracting', 'validating'):
@@ -111,6 +111,7 @@ def workspace_lock(directory):
 
 class Store:
     def __init__(self, directory: str | Path, target=None, crawler=None):
+        self.authentication = None
         self.root = Path(directory).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'manifest.json'
@@ -132,14 +133,27 @@ class Store:
 
     def save(self):
         self.data['updated_at'] = now()
+        if self.authentication:
+            self.authentication.guard.check(json.dumps(self.data, ensure_ascii=False))
         atomic_json(self.path, self.data)
 
+    def error_message(self, error):
+        if self.authentication:
+            from .authentication import LoginError
+            if not isinstance(error, LoginError):
+                return 'Authenticated capture failed; credential diagnostics were excluded.'
+        return str(error) or type(error).__name__
+
     def page(self, url):
+        if self.authentication:
+            self.authentication.guard.check(url)
         if url not in self.data['pages']:
             self.data['pages'][url] = {'url': url, 'state': 'discovered', 'resources': [], 'links': [], 'validation': {}, 'discovered_at': now()}
         return self.data['pages'][url]
 
     def write(self, relative, data):
+        if self.authentication:
+            self.authentication.guard.check(data)
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + '.part')

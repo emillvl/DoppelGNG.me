@@ -62,6 +62,16 @@ The fixture includes nested redirects, relative images, CSS imports/SRI, browser
 
 For offline replay checks, stop the fixture and serve the copied project's manifest. Verify the archived resource hashes, page content, browser requests, navigation, and download behavior. Full `validate` revisits originals for interaction checks, so it should run while the fixture is available.
 
+## Login verification
+
+```sh
+node scripts/python.mjs scripts/verify_login.py
+```
+
+This starts owned loopback fixtures with generated credentials, exercises the CLI entry point through mocked hidden prompts, and runs actual Waterfox capture at default desktop/mobile viewports, fresh-login validation, export, and replay after the original servers stop. It also checks browser cookie interception, another port's isolation, session expiry, blocked browser POST, and a hidden success marker. Capture/export files and readable temporary profile files are checked for known test login values. Normal browser shutdown must remove the temporary profile. The script restores the previous capture selection and retains numeric results in an ignored `.tools/login-verification-*` directory.
+
+The default unit suite covers prompt refusal, password-argument rejection, wrong credentials, form/redirect origin checks, cookie scoping, reflected-value rejection, evidence filtering, and cleanup. These fixtures do not certify an arbitrary website's login flow.
+
 ## Documentation screenshots
 
 The documentation image generator uses this owned fixture and the project's headless browser. It records real capture/status output and screenshots of the local replay. Terminal panels are browser-rendered transcripts, with the workspace path replaced by `<workspace>`; they are not photographs of a desktop terminal.

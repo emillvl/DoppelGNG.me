@@ -61,6 +61,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
             super().__init__(store.data['target'], output_dir=str(store.root / 'crawler'), delay=0.3, checkpoint_every=checkpoint_every, allow_selenium=False, respect_robots=respect_robots, resume=True, quiet=quiet)
             self.archive = Archive(store, browser)
             self.authorized_resource_origins = store.data.get('policy', {}).get('authorized_resource_origins', [])
+            self.authentication = store.authentication
 
         def _print_summary(self):
             # The manifest records completion after replay validation.
@@ -180,6 +181,8 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                     observed.extend(self.archive.ingest(browser.bidi.events[start:]))
                 baselines = record_baseline(browser, url, directory, viewports, flush_responses)
                 rendered = browser.driver.page_source
+                if authentication := store.authentication:
+                    authentication.guard.check(rendered)
                 (directory / 'rendered.html').write_text(rendered, encoding='utf-8')
                 page['title'] = browser.driver.title
                 links = self._extract_links(BeautifulSoup(original, 'html.parser'), meta['url'])
@@ -229,7 +232,7 @@ def build_adapter(module, store, browser, preview, *, viewports, allowed_ratio, 
                 return module.FetchResult(links=links, html=original)
             except BaseException as error:
                 page['state'] = 'failed'
-                page['error'] = str(error)
+                page['error'] = store.error_message(error)
                 store.data['status'] = 'incomplete'
                 store.save()
                 raise
@@ -368,12 +371,18 @@ def navigation_validation(store, browser, preview, only_edges=None, *, quiet=Fal
     return store.data['integration']
 
 
-def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None, respect_robots=True, checkpoint_every=1, quiet=False, authorized_resource_origins=None):
+def capture(target, crawler_directory, output, *, port=4173, viewports=None, allowed_ratio=0.01, scenarios=None, respect_robots=True, checkpoint_every=1, quiet=False, authorized_resource_origins=None, authentication=None):
     if checkpoint_every < 0:
         raise ValueError('--checkpoint-every must be a non-negative integer')
     module = load_crawler(crawler_directory)
     target = module.WebCrawler._normalize_url(target)
+    existing_manifest = Path(output) / 'manifest.json'
+    if existing_manifest.exists() and (authentication or json.loads(existing_manifest.read_text(encoding='utf-8')).get('authentication', {}).get('required')):
+        raise ValueError('Authenticated captures require a fresh --output directory for each session; login state is never saved for resume.')
     store = Store(output, target, crawler_identity(crawler_directory))
+    store.authentication = authentication
+    if authentication:
+        store.data['authentication'] = {'required': True, 'method': 'html-form'}
     policy = {'page_host': urlsplit(target).netloc, 'respect_robots': respect_robots, 'checkpoint_every': checkpoint_every, 'quiet': quiet, 'volatile_static_query': ['_rsc'], 'allowed_visual_ratio': allowed_ratio, 'viewports': viewports or [[1440, 900], [390, 844]]}
     effective_scenarios = store.data.get('scenarios', {}) if scenarios is None else scenarios
     previous_policy = store.data.get('policy', {})
@@ -397,7 +406,10 @@ def capture(target, crawler_directory, output, *, port=4173, viewports=None, all
     shutil.copyfile(Path(__file__).resolve().parents[1] / 'LICENSE', store.root / 'DOPPELGNG_LICENSE.txt')
     store.save()
     atomic_json(Path('.doppelgng/current.json'), {'manifest': str(store.path)})
-    with incomplete_on_failure(store), Preview(store, port) as preview, Waterfox(store.root / 'artifacts') as browser:
+    browser_options = {'authentication': authentication} if authentication else {}
+    with incomplete_on_failure(store), Preview(store, port) as preview, Waterfox(store.root / 'artifacts', **browser_options) as browser:
+        if authentication:
+            browser.navigate(target)
         store.data['browser'] = browser.identity
         adapter = build_adapter(module, store, browser, preview, viewports=store.data['policy']['viewports'], allowed_ratio=allowed_ratio, scenarios=store.data['scenarios'], respect_robots=respect_robots, checkpoint_every=checkpoint_every, quiet=quiet)
         try:

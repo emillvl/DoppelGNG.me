@@ -64,6 +64,7 @@ Actual status output from the owned fixture, rendered as a terminal transcript. 
 | --- | --- |
 | [Installation and first capture](docs/getting-started.md) | Requirements, setup, preview, resume, and export |
 | [Command reference](docs/cli.md) | Every CLI option, environment variables, scenarios, and exit behavior |
+| [Authenticated capture](docs/authentication.md) | Hidden login prompts, cookie sessions, signed-in checks, and privacy limits |
 | [Capture, replay, and evidence](docs/capture-and-replay.md) | Files, manifest fields, states, validation, privacy, and network boundaries |
 | [Architecture](docs/architecture.md) | Modules, crawler adapter, dependency discovery, rewriting, and integrity |
 | [Distribution and licensing](docs/distribution.md) | Bundled Windows ZIP, checksums, recipient setup, and dependency notices |
@@ -74,9 +75,19 @@ Actual status output from the owned fixture, rendered as a terminal transcript. 
 
 Historical measurements and test records are in [VALIDATION.md](VALIDATION.md), [COMPRESSION_REPORT.md](COMPRESSION_REPORT.md), [AUDIT_REPORT.md](AUDIT_REPORT.md), [POST_AUDIT_VERIFICATION.md](POST_AUDIT_VERIFICATION.md), and [REAL_WORLD_TEST_EMILVALIYEV.md](REAL_WORLD_TEST_EMILVALIYEV.md). Their counts and archive checksums describe the recorded milestones. Referenced local QA artifacts are not shipped in Git.
 
+## Authenticated capture
+
+Ordinary HTML password forms are supported through `--login`:
+
+```sh
+npm run crawl -- --url https://your-authorized-site.example/private/ --authorized --output captures/private --login --login-check '#signed-in'
+```
+
+The command prompts for both fields without echoing them. Replace `#signed-in` with a selector visible on every signed-in HTML page. Credentials are submitted only to a POST form on the target origin. Session cookies remain in memory, and known login values are checked before capture files are written. Each authenticated capture needs a fresh output directory. See [authenticated capture](docs/authentication.md) for supported forms, verification, and cleanup.
+
 ## Limits
 
-Computed external URLs, unexercised states, origin-dependent widgets, logins, payments, mutations, WebSockets, live streaming, and DRM are outside the supplied frontend equivalence checks. A successful capture proves the recorded checks for the discovered routes. It does not establish universal offline behavior or coverage of hidden routes.
+Computed external URLs, unexercised states, origin-dependent widgets, JavaScript/SSO/MFA login, payments, mutations, WebSockets, live streaming, and DRM are outside the supplied frontend equivalence checks. A successful capture proves the recorded checks for the discovered routes. It does not establish universal offline behavior or coverage of hidden routes.
 
 Native capture requests allow the authorized target, explicitly authorized resource origins, and public dependencies. The original browser still executes website code and can make its own requests. External active documents are sandboxed during replay; widgets that depend on their original origin may need an integration. See [network boundaries and limitations](docs/capture-and-replay.md#network-boundaries-and-limitations).
 
