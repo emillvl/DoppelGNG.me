@@ -38,21 +38,96 @@ Disclosures such as native `details` and buttons with `aria-expanded`/`aria-cont
 
 ## Commands
 
+Run these from the repository root. Put command options after npm's `--`. Replace `URL`, `PATH`, and example folder names with your own values.
+
+### Project commands
+
 | Task | Command |
 | --- | --- |
+| Install Node dependencies | `npm install` |
+| Install Node dependencies from the lockfile | `npm ci` |
 | Prepare dependencies | `npm run setup` |
 | Check cached runtime without downloads | `npm run runtime:check` |
-| Capture or resume | `npm run crawl -- --url URL --authorized` |
+| Capture or resume a public website | `npm run crawl -- --url URL --authorized` |
+| Capture with a login session in a fresh directory | `npm run crawl -- --url URL --authorized --output captures/private --login --login-check '#signed-in'` |
 | Show capture state | `npm run status -- --output example.com` |
 | Run validation again | `npm run validate -- --output example.com` |
+| Validate an authenticated capture with a fresh login | `npm run validate -- --output captures/private --login --login-check '#signed-in'` |
 | Serve a capture | `npm run dev -- --manifest example.com/manifest.json` |
 | Export to another directory | `npm run export -- --output example.com --destination delivery/example.com` |
 | Build the Windows ZIP with browser included | `npm run package` |
 | Run project tests | `npm test` |
+| Show capture help | `npm run crawl -- --help` |
+| Show validation help | `npm run validate -- --help` |
+| Show status help | `npm run status -- --help` |
+| Show export help | `npm run export -- --help` |
+| Show packaging help | `npm run package -- --help` |
 
 Capture, status, validation, and export print JSON. Capture and validation exit unsuccessfully when the result is incomplete. Validation can revisit the original site for interaction checks; it is not an offline-only command.
 
 To run a copied project, open its directory, run `npm install`, then `npm run dev`. Replay needs Node.js; it does not need Python, the crawler, or Waterfox. Export includes raw responses and browser artifacts, so review that material before sharing it.
+
+### Capture options
+
+Use these with `npm run crawl --`. Login options are in the next table.
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--url URL` | Required | HTTP or HTTPS target without embedded credentials. |
+| `--authorized` | Required | Confirm permission to reproduce the target. |
+| `--output PATH` | Folder named after the target domain | Select the capture workspace. Public captures can resume; authenticated captures need a fresh directory. |
+| `--crawler PATH` | `DOPPELGNG_CRAWLER`, otherwise `.tools/webcrawler` | Select a compatible crawler directory. |
+| `--port N` | `4173` | Port for the temporary local replay server used during checks. |
+| `--viewport WIDTHxHEIGHT` | `1440x900` and `390x844` | Repeat to replace the default viewports. Each dimension must be 240 through 7680. |
+| `--visual-tolerance RATIO` | `0.01` | Maximum changed-pixel ratio for page screenshots, between 0 and 1. |
+| `--scenarios FILE` | Saved mapping on resume, otherwise none | Load JSON interaction scenarios. A file containing `{}` clears the saved mapping. |
+| `--authorize-resource-origin URL` | Saved list on resume, otherwise none | Repeat to authorize additional resource origins, including private addresses. Uses the exact scheme, hostname, and port; does not expand page scope. |
+| `--respect-robots` | Enabled | Apply robots.txt rules. |
+| `--ignore-robots` | Disabled | Skip robots.txt rules. Cannot be combined with `--respect-robots`. |
+| `--checkpoint-every N` | `1` | Save crawler state every N pages. `0` disables periodic saves; final saves and recovery records remain enabled. |
+| `-q`, `--quiet` | Disabled | Suppress progress while keeping final JSON and errors. Use `npm --silent run crawl -- ... -q` to hide npm's banner too. |
+
+### Login options
+
+These apply to both `crawl` and `validate`. `--login` takes no value: enter the username and password at the hidden prompts. All other login options require `--login`. See [authenticated capture](docs/authentication.md) for supported forms and privacy limits.
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--login` | Disabled | Start an in-memory session through an ordinary HTML password form. |
+| `--login-check SELECTOR` | Required with `--login` | CSS selector that must be visible on every signed-in original HTML page. Replace `#signed-in` in the examples with your site's marker. |
+| `--login-url URL` | Target URL, following its login redirect | Select a login page on the same origin as the target. |
+| `--login-form SELECTOR` | Unique password form | Select the form when automatic selection is ambiguous. |
+| `--login-user-field NAME` | Detected username field | Select the username input by its HTML `name` attribute. |
+| `--login-password-field NAME` | Detected password field | Select the password input by its HTML `name` attribute. |
+
+### Options for other commands
+
+| Command | Option | Default and purpose |
+| --- | --- | --- |
+| `status`, `validate`, `export` | `--output PATH` | Select a capture directory. Omit to use `.doppelgng/current.json`. |
+| `validate` | `--port N` | Temporary replay server port; defaults to `4173`. Other capture settings come from the saved manifest. |
+| `export` | `--destination PATH` | Delivery directory; defaults to a folder named after the target domain in the current directory. Must be new unless it is the source capture itself. |
+| `dev` | `--manifest PATH` | Manifest to serve. Falls back to `DOPPELGNG_MANIFEST`, `.doppelgng/current.json`, then `.doppelgng/manifest.json`. |
+| `dev` | `--port N` | Local server port. Falls back to `PORT`, then `4173`; binds to `127.0.0.1`. |
+| `package` | `--output PATH` | ZIP filename; defaults to `dist/doppelgng.me-windows-x64.zip`. Also writes a `.sha256` file. |
+| `crawl`, `status`, `validate`, `export`, `package` | `-h`, `--help` | Print usage and exit. |
+
+For example, `npm run package -- --output dist/custom.zip` chooses a package filename. See the [command reference](docs/cli.md) for environment overrides, interaction scenarios, and exit behavior.
+
+### Developer commands
+
+These use the prepared project runtime. The browser checks and screenshot generator run against owned local fixtures; see [development](docs/development.md) for their outputs and requirements.
+
+| Task | Command |
+| --- | --- |
+| Run one Python test module | `node scripts/python.mjs -m unittest discover -s tests -p test_resources.py -v` |
+| Run the Node replay server tests | `node --test tests/server.test.mjs` |
+| Run the pinned crawler's tests | `node scripts/python.mjs -m unittest discover -s .tools/webcrawler/tests -v` |
+| Start the owned test website | `node scripts/python.mjs tests/fixture_site.py --port 4318` |
+| Start the fixture with robots.txt blocking all routes | `node scripts/python.mjs tests/fixture_site.py --port 4318 --disallow-all` |
+| Verify login, capture, validation, export, and offline replay | `node scripts/python.mjs scripts/verify_login.py` |
+| Regenerate documentation screenshots and transcripts | `node scripts/python.mjs scripts/docs_screenshots.py` |
+| Check the patch for whitespace errors | `git diff --check` |
 
 ![Completed capture status from the owned regression fixture](docs/assets/terminal-status.png)
 
