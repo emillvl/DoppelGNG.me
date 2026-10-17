@@ -18,6 +18,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .dependencies import PROJECT_ROOT, ensure_crawler, hash_file, runtime_lock
+from .compression import compress_runtime
 
 
 def download(url, destination, algorithm, expected, *, offline=False):
@@ -85,6 +86,8 @@ def ensure_browser_runtime(root=PROJECT_ROOT, *, offline=False):
     tools.mkdir(parents=True, exist_ok=True)
     if (tools / 'runtime-manifest.json').is_file():
         receipt = verify_runtime(root)
+        if not offline:
+            compress_runtime(root)
         print(f'Reusing project Waterfox {receipt["waterfox_version"]} and geckodriver {receipt["driver_version"]}', flush=True)
         return receipt
     if offline:
@@ -137,7 +140,9 @@ def ensure_browser_runtime(root=PROJECT_ROOT, *, offline=False):
     receipt = {'schema': 1, 'platform': 'windows-x64', 'spec_sha256': spec_digest(spec), 'waterfox_version': browser_spec['version'], 'engine_version': ini.get('App', 'Version'), 'driver_version': driver_spec['version'], 'source_url': browser_spec['source_url'], 'files': files}
     for name, value in [('waterfox-provenance.json', browser_spec), ('geckodriver-provenance.json', driver_spec), ('runtime-manifest.json', receipt)]:
         (tools / name).write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
-    return verify_runtime(root)
+    receipt = verify_runtime(root)
+    compress_runtime(root)
+    return receipt
 
 
 def provision(root=PROJECT_ROOT, *, offline=False):
