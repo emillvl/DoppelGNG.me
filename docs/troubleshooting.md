@@ -64,6 +64,8 @@ Authorize only origins you own or may reproduce. Scheme, hostname, and effective
 
 ## A page remains incomplete
 
+For an authenticated capture, a missing signed-in marker, a returned password form, an expired session, or detected login data stops capture. Select a visible marker common to all captured HTML pages. Retry in a fresh output directory. Do not put credentials in command arguments. JavaScript login, SSO, MFA, and browser POST APIs need separate support; see [authentication](authentication.md).
+
 Read that page's `error` and `validation.errors` in the manifest, then inspect its `artifacts/` directory. `baseline.json` identifies original screenshots. `validation.json` records measured snapshot differences. `interactions.json` identifies untested controls or failed scenarios. Integration results in the manifest identify failed navigation edges.
 
 Run status to inspect the saved state, then repeat the capture command to retry. Integrity failures require intact original/local bytes. Changing checks can invalidate earlier passes. Raising tolerance does not repair a missing image, browser error, incorrect route, or unsupported control.

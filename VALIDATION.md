@@ -98,8 +98,21 @@ Historical milestone records. Counts, folder names, and build hashes describe ea
 - All 126 protected existing copied-site files retained their hashes. Existing capture folders and the preview selection were preserved; older captures can be resumed by passing their existing folder with `--output`.
 - Rebuilt and read back the delivery ZIP: 120 application/runtime files, 175,998,577 bytes, SHA256 `34d6982f51773111c5a5dfcbbe15451bfede9a2013d539df6759e723adc7d619`. Packaging tests exclude both domain-named and older suffixed website outputs.
 
+## Cookie-form login
+
+Verified on 17 October 2026 with generated credentials and owned loopback fixtures. No real account credentials or external login service were used.
+
+- The project suite passed 131 Python tests and 3 Node tests. The pinned crawler passed 33 tests, for 167 total. The 22 login regressions cover hidden prompts, rejected password arguments, wrong credentials, form/redirect origin checks, cookie paths/expiry, evidence filtering, reflected values, pre-screenshot checks, and cleanup after errors.
+- Real Waterfox capture and fresh-login validation both completed at the default 1440x900 and 390x844 viewports. The fixture supplied one protected HTML page and one download, with four resource records. All six capture screenshot comparisons had a changed-pixel ratio of 0.0; two navigation checks passed. Authenticated native HEAD probes also succeeded.
+- Export completed. With the original servers stopped and a fresh browser without login state, every exported resource matched its recorded local hash over HTTP and the page replayed successfully.
+- Response interception kept the browser cookie jar empty while retaining cookie rotation in the in-memory HTTP session. An owned origin on another port received zero cookie headers. Session expiry, a hidden signed-in marker, and browser POST were rejected. The hidden-marker attempt retained an incomplete manifest with no archived resources.
+- The final run scanned 38 capture files, 37 export files, and 331 readable browser-profile files for its generated username, password, session cookie, CSRF value, and rotated cookie. No values matched. Four active `parent.lock` files could not be read. All temporary profiles were removed on normal shutdown.
+- Public capture defaults and resume tests still pass. Authenticated capture requires a fresh output directory, and authenticated validation requires a new login. The manifest records the requirement without saving credentials, cookie state, or login settings.
+
+Reproduce the browser workflow with `node scripts/python.mjs scripts/verify_login.py`. Numeric results and full logs remain in ignored `.tools/login-verification-*` directories. This evidence covers the owned HTML-form fixtures, not JavaScript login, SSO, MFA, arbitrary transformed credential reflections, or every website. The [authentication guide](docs/authentication.md) records those limits.
+
 ## Completion rules
 
 No page is complete solely because HTML was downloaded or the server started. The pipeline distinguishes extracted, reconstructed, validated, complete, failed, and blocked states. Unsupported service operations, missing resources, untested controls, visual differences beyond the configured tolerance, and browser failures remain explicit failures. The tool does not claim support for every possible website or recover unavailable backend source.
 
-All Git work is local. Browser runtimes, website responses, downloaded assets, generated npm projects, and screenshots are excluded from commits. No remote branches, pull requests, releases, or pushes were created.
+At the earlier milestones recorded above, Git work remained local and no remote branches, pull requests, releases, or pushes had been created. Browser runtimes, website responses, downloaded assets, and generated npm projects remain excluded from commits. Documentation screenshots of the owned fixture are tracked separately.

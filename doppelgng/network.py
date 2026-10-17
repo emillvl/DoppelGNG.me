@@ -82,8 +82,32 @@ class CaptureAdapter(HTTPAdapter):
                 del request._capture_address
 
 
-def capture_session(target, authorized_origins=()):
-    session = requests.Session()
+class CaptureSession(requests.Session):
+    def __init__(self, authentication=None):
+        super().__init__()
+        self.authentication = authentication
+        if authentication is not None:
+            self.cookies = authentication.cookies
+
+    def send(self, request, **kwargs):
+        login = self.authentication
+        if login is not None:
+            login.guard.check(request.url)
+            for name in ('Cookie', 'Authorization', 'Proxy-Authorization'):
+                request.headers.pop(name, None)
+            cookie = login.cookie_header(request.url)
+            if cookie:
+                request.headers['Cookie'] = cookie
+        try:
+            return super().send(request, **kwargs)
+        finally:
+            if login is not None:
+                login.observe_cookies()
+                request.headers.pop('Cookie', None)
+
+
+def capture_session(target, authorized_origins=(), *, authentication=None):
+    session = CaptureSession(authentication)
     # Proxy DNS could bypass pinning; netrc could add unrelated credentials.
     session.trust_env = False
     session.verify = os.environ.get('REQUESTS_CA_BUNDLE') or os.environ.get('CURL_CA_BUNDLE') or True

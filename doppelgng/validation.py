@@ -60,6 +60,8 @@ def record_baseline(browser, url, directory, viewports, on_observation=None):
         exercise_discovery(browser)
         for position, fraction in (('top', 0), ('middle', 0.5), ('bottom', 1)):
             scroll(browser, fraction)
+            if on_observation and getattr(browser, 'authentication', None):
+                on_observation()
             filename = f'original-{width}x{height}-{position}.png'
             browser.driver.save_screenshot(str(directory / filename))
             records.append({'viewport': [width, height], 'position': position, 'fraction': fraction, 'screenshot': filename, 'snapshot': snapshot(browser)})
@@ -175,9 +177,11 @@ def interaction_check(browser, url, local_url, directory, configured=None, after
             assertion = browser.driver.find_element(By.CSS_SELECTOR, scenario.get('assert_selector', scenario['selector']))
             states.append({'text': assertion.text, 'expanded': assertion.get_attribute('aria-expanded'), 'pressed': assertion.get_attribute('aria-pressed'), 'selected': assertion.get_attribute('aria-selected'), 'checked': assertion.get_attribute('checked'), 'value': assertion.get_attribute('value'), 'open': assertion.get_attribute('open'), 'displayed': assertion.is_displayed()})
             filename = f'interaction-{len(results)}-{"original" if target == url else "local"}.png'
+            if target == url and after_original and getattr(browser, 'authentication', None):
+                after_original(browser.bidi.events[event_start:])
             browser.driver.save_screenshot(str(directory / filename))
             screenshots.append(filename)
-            if target == url and after_original:
+            if target == url and after_original and not getattr(browser, 'authentication', None):
                 after_original(browser.bidi.events[event_start:])
         comparison = visual_diff(directory / screenshots[0], directory / screenshots[1], directory / f'interaction-{len(results)}-diff.png')
         local_errors = []

@@ -48,6 +48,7 @@ The manifest is JSON with `schema: 1`. Fields can be absent until their correspo
 | `browser` | Executable path, browser capabilities, and response-body collector setup error if present |
 | `policy` | Robots/checkpoint/quiet choices, page host, viewports, tolerance, volatile query keys, extra resource-origin authorizations |
 | `scenarios` | Saved mapping of original paths to interaction scenarios |
+| `authentication` | For authenticated captures, only `required: true` and `method: "html-form"`; no credentials or cookie state |
 | `discovery` | Sitemap observations and discovered sitemap pages |
 | `pages` | Original URL to page/download record |
 | `resources` | Original URL to archived resource record |
@@ -113,6 +114,8 @@ Integration runs at 1440x900. It checks internal link HTTP loading and exercises
 
 Standalone validation uses saved originals rather than creating new screenshot baselines. It still visits original pages for interaction discovery/comparison. To demonstrate offline behavior for a particular target, test replay with its original services unavailable and record that separate result.
 
+Cookie-form login is available through `--login` and a required signed-in selector. Authenticated capture requires a fresh workspace, and standalone validation requires a new login. Its session state is discarded after each operation. See [authenticated capture](authentication.md).
+
 ## Replay behavior
 
 The Node server reads the manifest for each request. Same-origin URLs retain their paths and queries; external resources use `/__doppelgng__/asset/KEY`. It supports GET, HEAD, single byte ranges, saved content disposition, same-origin document redirects, and trailing-slash alternatives.
@@ -133,7 +136,7 @@ This native transport policy is not a firewall for the browser. Waterfox execute
 
 During replay, external HTML, XHTML, SVG, and XML documents receive a response sandbox. It blocks parent-document reads and automatic top-level navigation while allowing clicked navigation, popups, scripts, forms, and downloads under the configured sandbox permissions. External scripts and stylesheets loaded as resources are not sandboxed as documents. Widgets relying on original-origin storage, authentication, modules, or requests may need an integration.
 
-The tool does not recover backend source or prove logins, payments, mutations, WebSockets, streaming, DRM, hidden routes, or unexercised states. DOM screenshots cannot establish those behaviors. Large graphs, all encodings, minimum runtime versions, alternative platforms, and every dependency version are not covered by the recorded Windows evidence.
+The tool does not recover backend source or prove the original account system, payments, mutations, WebSockets, streaming, DRM, hidden routes, or unexercised states. Supported form login provides access for capture; it does not recreate authentication locally. DOM screenshots cannot establish those backend behaviors. Large graphs, all encodings, minimum runtime versions, alternative platforms, and every dependency version are not covered by the recorded Windows evidence.
 
 ## Captured data and sharing
 

@@ -24,6 +24,12 @@ npm run crawl -- --help
 | `--ignore-robots` | Disabled | Skip robots.txt. Cannot be combined with `--respect-robots`. |
 | `--checkpoint-every N` | `1` | Save upstream crawler state every N processed pages. `0` disables periodic saves. Negative values are rejected. |
 | `-q`, `--quiet` | Disabled | Suppress capture/navigation progress. Keep final JSON and errors. |
+| `--login` | Disabled | Prompt for hidden username/password fields and use an in-memory HTML-form cookie session. Takes no value. |
+| `--login-check SELECTOR` | Required with `--login` | Visible signed-in marker required on every original HTML page. |
+| `--login-url URL` | Target URL | Follow this same-origin URL to the login form. |
+| `--login-form SELECTOR` | Unique password form | Select a form when automatic selection is ambiguous. |
+| `--login-user-field NAME` | Detected username field | HTML username input name. |
+| `--login-password-field NAME` | Detected password field | HTML password input name. |
 | `-h`, `--help` | | Print usage and exit. |
 
 `--checkpoint-every 0` retains final saves, RAM-triggered crawler offloading, and reconstruction recovery records. It does not disable the manifest.
@@ -59,12 +65,14 @@ Prints capture status, every page state, resource count, and manifest path as JS
 ## Validate
 
 ```sh
-npm run validate -- [--output PATH] [--port N]
+npm run validate -- [--output PATH] [--port N] [--login --login-check SELECTOR]
 ```
 
 Uses saved original baselines, stored page screenshot tolerance, stored scenarios, and the current local resources. `--port` defaults to `4173`. It checks downloads for raw/local hash integrity and runs page and navigation checks again. Original-site interaction checks require network access to the original site.
 
 This command has no `--viewport`, `--visual-tolerance`, or `--scenarios` options. Change those through capture. It returns 0 only if the resulting capture is complete.
+
+All six login options from capture also apply to validate. An authenticated capture requires a fresh login and explicit signed-in selector for validation. See [authenticated capture](authentication.md). Login settings and credentials are not saved. Authenticated capture requires a fresh output directory; public resume is unchanged.
 
 ## Export
 

@@ -29,6 +29,7 @@ The Python process manages capture and validation. A temporary Node server serve
 | `doppelgng/crawler.py` | Import the configured crawler in place and record source hashes |
 | `doppelgng/discovery.py` | Read same-origin sitemap indexes and page lists |
 | `doppelgng/browser.py` | WebDriver session, exact content viewports, BiDi events/body collector, source fetch |
+| `doppelgng/authentication.py` | Hidden prompts, same-origin HTML-form POST, in-memory cookies, signed-in checks, and known-secret write checks |
 | `doppelgng/archive.py` | Ingest observed GET/HEAD responses, retrieve required resources, close dependency graph |
 | `doppelgng/resources.py` | Parse HTML/CSS/JavaScript references and rewrite known URLs |
 | `doppelgng/reconstruct.py` | Write local resources, update integrity metadata, invalidate changed checks |
@@ -55,6 +56,8 @@ The inspected original crawler 2.0.0 uses requests/Beautiful Soup, a single-host
 The adapter replaces the upstream progress and summary output. It treats the reconstruction manifest as the resume authority because a crawler can mark a URL visited before extraction succeeds. Source hashes bind a workspace to the crawler implementation used for its capture.
 
 ## Response collection
+
+Authenticated capture performs login before browser recording. Native sessions attach cookies only to the target's exact origin. A separate BiDi worker services blocked requests while the event-reader thread dispatches command replies. It overrides browser request cookies and removes response Set-Cookie headers, keeping the shared cookie jar in Python memory. Authenticated browser traffic permits GET and HEAD only. The event recorder removes credential headers before retaining events, and private-mode browser sessions disable driver logs and persistent caches.
 
 Waterfox uses WebDriver for navigation and JavaScript and BiDi for network/log events. A reader thread dispatches command responses and retains events. The response collector requests up to 100,000,000 encoded bytes per collected item. The archive's default resource body limit is 256,000,000 bytes. These are implementation limits, not CLI options.
 

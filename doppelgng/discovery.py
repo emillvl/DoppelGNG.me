@@ -11,7 +11,8 @@ def sitemap_pages(crawler, *, max_maps=100, max_bytes=10_000_000):
     pending = list(declared or [urljoin(origin, '/sitemap.xml')])
     seen, pages, observations = set(), [], []
     authorized = getattr(crawler, 'authorized_resource_origins', ())
-    with capture_session(crawler.base_url, authorized) as session:
+    authentication = getattr(crawler, 'authentication', None)
+    with (capture_session(crawler.base_url, authorized, authentication=authentication) if authentication else capture_session(crawler.base_url, authorized)) as session:
         while pending:
             url = pending.pop(0)
             if url in seen:
