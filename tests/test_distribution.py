@@ -16,7 +16,7 @@ class DistributionTests(unittest.TestCase):
             root = Path(temporary)
             for name in SOURCE_FILES:
                 (root / name).write_text('application source')
-            for name in ('docs/getting-started.md', 'docs/assets/terminal-capture.png', 'docs/assets/terminal-capture.txt'):
+            for name in ('docs/getting-started.md', 'docs/assets/terminal-capture.png', 'docs/assets/terminal-capture.txt', 'docs/assets/brand/doppelgng-banner.svg'):
                 file = root / name
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.write_bytes(b'documentation fixture')
@@ -45,6 +45,7 @@ class DistributionTests(unittest.TestCase):
                 self.assertIn('DoppelGNG.me/docs/getting-started.md', names)
                 self.assertIn('DoppelGNG.me/docs/assets/terminal-capture.png', names)
                 self.assertIn('DoppelGNG.me/docs/assets/terminal-capture.txt', names)
+                self.assertIn('DoppelGNG.me/docs/assets/brand/doppelgng-banner.svg', names)
                 self.assertFalse(any('private-page' in name or '/example.test/' in name or '+copied' in name or 'waterfox-setup.exe' in name or name.endswith('/.env') or '/.git/' in name for name in names))
                 manifest = json.loads(archive.read('DoppelGNG.me/bundle-manifest.json'))
                 for name, expected in manifest['files'].items():

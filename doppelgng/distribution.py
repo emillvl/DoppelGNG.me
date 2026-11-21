@@ -18,7 +18,7 @@ def package_files(root=PROJECT_ROOT):
     runtime = verify_runtime(root)
     crawler = ensure_crawler(root, offline=True)
     files = {name: root / name for name in SOURCE_FILES}
-    for directory, extensions in [('doppelgng', {'.py'}), ('scripts', {'.mjs', '.py'}), ('tests', {'.py', '.mjs', '.json'}), ('docs', {'.md', '.png', '.txt', '.json'})]:
+    for directory, extensions in [('doppelgng', {'.py'}), ('scripts', {'.mjs', '.py'}), ('tests', {'.py', '.mjs', '.json'}), ('docs', {'.md', '.png', '.svg', '.txt', '.json'})]:
         for file in (root / directory).rglob('*'):
             if file.is_file() and file.suffix in extensions and '__pycache__' not in file.parts:
                 files[file.relative_to(root).as_posix()] = file
