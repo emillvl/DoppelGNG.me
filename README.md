@@ -1,12 +1,43 @@
-# DoppelGNG.me
+<p align="center">
+  <img src="docs/assets/brand/doppelgng-banner.svg" alt="DoppelGNG.me — Capture / Reconstruct / Replay / Validate" width="100%">
+</p>
 
-DoppelGNG.me captures a website's frontend and checks whether its local copy renders and behaves like the original. It uses [WebCrawler](https://github.com/emillvl/webcrawler) for discovery and headless Waterfox for response bodies, rendered pages, and browser checks.
+<p align="center">
+  <strong>Capture the visible frontend. Reconstruct it for local replay. Check how closely it matches.</strong>
+</p>
 
-Use it for websites you own or have permission to reproduce. A capture preserves original responses, rewrites resources for local replay, and records screenshots, hashes, and validation results. Each completed capture is a standalone npm project.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#see-it-in-action">See it in action</a> ·
+  <a href="#recorded-evidence">Recorded evidence</a> ·
+  <a href="#command-reference">Commands</a> ·
+  <a href="#documentation">Documentation</a>
+</p>
 
-The tool captures browser-visible files and exercised states. It cannot recover backend source, recreate an unavailable service, or guarantee that every computed external request will work offline.
+<p align="center">
+  <code>Node.js 22+</code> &nbsp; <code>Python 3.10+</code> &nbsp; <code>MIT licensed</code> &nbsp; <code>Verified browser setup: Windows x64</code>
+</p>
 
-## Start a capture
+---
+
+DoppelGNG.me captures a website's browser-visible frontend and tests whether its local copy renders and behaves like the original. [WebCrawler](https://github.com/emillvl/webcrawler) handles discovery; headless Waterfox collects response bodies, rendered pages, and browser evidence. The resulting capture keeps original response bytes separate from rewritten replay files, and a completed capture is a standalone npm project.
+
+<table>
+  <tr>
+    <td width="50%"><strong>01 · Discover &amp; capture</strong><br>Discover routes, collect observed responses, and retain the evidence behind each captured page.</td>
+    <td width="50%"><strong>02 · Reconstruct &amp; replay</strong><br>Resolve dependencies, rewrite local references, and serve an archived frontend with Node.js.</td>
+  </tr>
+  <tr>
+    <td><strong>03 · Compare &amp; inspect</strong><br>Check content, layout, images, controls, browser errors, visual differences, and internal navigation.</td>
+    <td><strong>04 · Resume &amp; export</strong><br>Resume public workspaces, inspect the manifest, and export a verified copy that can run independently.</td>
+  </tr>
+</table>
+
+> [!IMPORTANT]
+> **Capture only websites you own or are authorized to reproduce.** This tool captures observed frontend files and exercised states. It does **not** recover backend source code, recreate unavailable services, or guarantee universal offline behavior. See [the limits](#limits) and [network boundaries](docs/capture-and-replay.md#network-boundaries-and-limitations).
+
+## Quick start
 
 Source setup requires Node.js 22+, Python 3.10+, Git, and, on Windows x64, 7-Zip. Automatic browser provisioning supports Windows x64. Other platforms need explicit browser and driver paths and have not been validated. See [installation](docs/getting-started.md) for prerequisites and overrides.
 
@@ -25,7 +56,94 @@ Setup downloads pinned crawler and browser files into `.tools/` and installs Pyt
 
 The default output folder is the target's domain, such as `example.com/`. Choose `--output captures/example` to use another directory. Repeat the same capture command to resume that workspace. Existing unrelated folders are refused.
 
-## What a completed capture contains
+## How it works
+
+The capture and the replay are deliberately separate: **original responses are retained**, while local files are rewritten for replay. Validation compares the replay with recorded original states rather than assuming that a successful download means a faithful copy.
+
+```mermaid
+flowchart TD
+    A["Website you own or are authorized to reproduce"] --> B["Discover routes · WebCrawler"]
+    B --> C["Capture responses and rendered states · Waterfox + BiDi"]
+    C --> D["raw/ · original response archive"]
+    D --> E["site/ · dependency closure and rewriting"]
+    E --> F["Node.js local replay"]
+    C --> G["Original screenshots, DOM and network evidence"]
+    F --> H["Rendering, interaction and navigation checks"]
+    G --> H
+    H --> I{"Required checks pass?"}
+    I -->|Yes| J["complete · standalone export"]
+    I -->|No| K["incomplete · retained diagnostics"]
+```
+
+For implementation details, read the [architecture](docs/architecture.md), [capture and replay](docs/capture-and-replay.md), and [validation reference](docs/cli.md). A full `validate` can revisit the original site; local replay itself serves archived resources without automatically fetching missing resources from the network.
+
+## See it in action
+
+These are **actual outputs from the repository's owned regression fixture**, not mock product screens or a claim about unrelated websites.
+
+<table>
+  <tr>
+    <th align="center">01 / Capture output</th>
+    <th align="center">02 / Local replay in the browser</th>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><a href="docs/assets/terminal-capture.png"><img src="docs/assets/terminal-capture.png" alt="Real capture progress and completion JSON for the owned test fixture" width="100%"></a></td>
+    <td width="50%" align="center"><a href="docs/assets/fixture-replay-desktop.png"><img src="docs/assets/fixture-replay-desktop.png" alt="Captured fixture replayed locally in a browser at desktop size" width="100%"></a></td>
+  </tr>
+  <tr>
+    <td>Recorded capture transcript: <a href="docs/assets/terminal-capture.txt">read as text</a></td>
+    <td>Captured HTML, images, JSON, styles and interactive disclosure controls in local replay</td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Inspect saved capture status</strong> · real fixture output</summary>
+
+![Completed capture status from the owned fixture](docs/assets/terminal-status.png)
+
+[Plain-text status transcript](docs/assets/terminal-status.txt) · [Screenshot provenance](docs/screenshots.md) · [Fixture evidence JSON](docs/assets/fixture-evidence.json)
+
+</details>
+
+## Recorded evidence
+
+**Owned regression fixture — documented run.** These values come from the checked-in [fixture evidence JSON](docs/assets/fixture-evidence.json), not a continuously updated CI badge.
+
+<table>
+  <tr>
+    <td align="center"><strong>6</strong><br>recorded pages</td>
+    <td align="center"><strong>13</strong><br>resource records</td>
+    <td align="center"><strong>30</strong><br>visual comparisons</td>
+    <td align="center"><strong>13</strong><br>navigation checks</td>
+  </tr>
+</table>
+
+**Authorized portfolio capture — historical run on 17 October 2026.** The [real-world verification report](REAL_WORLD_TEST_EMILVALIYEV.md) records the following results for the discovered routes of the owner's portfolio:
+
+<table>
+  <tr>
+    <td align="center"><strong>19</strong><br>discovered routes captured</td>
+    <td align="center"><strong>110</strong><br>resource records</td>
+    <td align="center"><strong>72</strong><br>passing viewport/scroll observations</td>
+    <td align="center"><strong>80</strong><br>passing internal link checks</td>
+  </tr>
+</table>
+
+The report also records a completed export and browser-isolated replay. **These are measurements of specific recorded runs**, not guarantees for arbitrary websites, a claim of permanent compatibility, or a benchmark of today's checkout. The run report explains scope and limitations; [historical audits](#documentation) provide further evidence.
+
+## What a capture contains
+
+Every completed workspace distinguishes the downloaded evidence from the files it serves locally:
+
+```text
+capture/
+├── raw/           original response bytes
+├── site/          rewritten files for local replay
+├── artifacts/     DOM, screenshots, network evidence and differences
+├── manifest.json  resources, hashes, states and validation results
+├── server.mjs      standalone Node replay server
+└── package.json   commands for the exported project
+```
 
 - Original response bytes in `raw/`, separate from rewritten files in `site/`.
 - A manifest with resources, page states, source hashes, discovery policy, and validation results.
@@ -36,7 +154,31 @@ By default, the browser checks 1440x900 and 390x844 content viewports at the top
 
 Disclosures such as native `details` and buttons with `aria-expanded`/`aria-controls` are discovered automatically. Other controls need [interaction scenarios](docs/cli.md#interaction-scenarios). Forms and backend operations need separate service work.
 
-## Commands
+## Authenticated capture
+
+Ordinary HTML password forms are supported through `--login`:
+
+```sh
+npm run crawl -- --url https://your-authorized-site.example/private/ --authorized --output captures/private --login --login-check '#signed-in'
+```
+
+The command prompts for both fields without echoing them. Replace `#signed-in` with a selector visible on every signed-in HTML page. Credentials are submitted only to a POST form on the target origin. Session cookies remain in memory, and known login values are checked before capture files are written. Each authenticated capture needs a fresh output directory. See [authenticated capture](docs/authentication.md) for supported forms, verification, and cleanup.
+
+## Command reference
+
+Use these commands from the repository root. The full option tables are still here for readers who need them; the [complete CLI guide](docs/cli.md) documents every flag and scenario.
+
+| Intent | Command |
+| --- | --- |
+| Capture or resume an authorized public site | `npm run crawl -- --url URL --authorized` |
+| Check a workspace's status | `npm run status -- --output example.com` |
+| Re-run verification | `npm run validate -- --output example.com` |
+| Preview the capture | `npm run dev -- --manifest example.com/manifest.json` |
+| Export the capture | `npm run export -- --output example.com --destination delivery/example.com` |
+| Run the tests | `npm test` |
+
+<details>
+<summary><strong>Expand all commands and options</strong> · project tasks, capture flags, login flags, packaging and developer commands</summary>
 
 Run these from the repository root. Put command options after npm's `--`. Replace `URL`, `PATH`, and example folder names with your own values.
 
@@ -133,6 +275,9 @@ These use the prepared project runtime. The browser checks and screenshot genera
 
 Actual status output from the owned fixture, rendered as a terminal transcript. See [screenshots and run evidence](docs/screenshots.md) for capture output and the local replay.
 
+</details>
+
+
 ## Documentation
 
 | Guide | Contents |
@@ -149,16 +294,6 @@ Actual status output from the owned fixture, rendered as a terminal transcript. 
 | [Contributing](CONTRIBUTING.md) | Scope, changes, tests, and writing conventions |
 
 Historical measurements and test records are in [VALIDATION.md](VALIDATION.md), [COMPRESSION_REPORT.md](COMPRESSION_REPORT.md), [AUDIT_REPORT.md](AUDIT_REPORT.md), [POST_AUDIT_VERIFICATION.md](POST_AUDIT_VERIFICATION.md), and [REAL_WORLD_TEST_EMILVALIYEV.md](REAL_WORLD_TEST_EMILVALIYEV.md). Their counts and archive checksums describe the recorded milestones. Referenced local QA artifacts are not shipped in Git.
-
-## Authenticated capture
-
-Ordinary HTML password forms are supported through `--login`:
-
-```sh
-npm run crawl -- --url https://your-authorized-site.example/private/ --authorized --output captures/private --login --login-check '#signed-in'
-```
-
-The command prompts for both fields without echoing them. Replace `#signed-in` with a selector visible on every signed-in HTML page. Credentials are submitted only to a POST form on the target origin. Session cookies remain in memory, and known login values are checked before capture files are written. Each authenticated capture needs a fresh output directory. See [authenticated capture](docs/authentication.md) for supported forms, verification, and cleanup.
 
 ## Limits
 

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="270" viewBox="0 0 400 270" role="img" aria-label="DoppelGNG.me brand"><defs>
+ <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#E6EAF5"/><stop offset="1" stop-color="#CDD4E5"/></linearGradient>
+ <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D681FF"/><stop offset="0.35" stop-color="#AE4AFF"/><stop offset="1" stop-color="#6D37FF"/></linearGradient>
+ <linearGradient id="ambient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D1020"/><stop offset="0.5" stop-color="#080914"/><stop offset="1" stop-color="#101021"/></linearGradient>
+ <radialGradient id="glow1"><stop offset="0" stop-color="#6422E9" stop-opacity="0.50"/><stop offset="1" stop-color="#6422E9" stop-opacity="0"/></radialGradient>
+ <radialGradient id="glow2"><stop offset="0" stop-color="#7A23E9" stop-opacity="0.34"/><stop offset="1" stop-color="#7A23E9" stop-opacity="0"/></radialGradient>
+ </defs><g transform="translate(14 12) scale(1.03)"><g transform="">
+           <path d="M 38 25 H 146 Q 153 25 160 31 L 105 104 Q 97 114 105 125 L 160 199 Q 153 205 146 205 H 38 Q 19 205 19 186 V 44 Q 19 25 38 25 Z" fill="none" stroke="url(#silver)" stroke-linejoin="round" stroke-linecap="round" stroke-width="13"/>
+           <path d="M 38 25 H 146 Q 153 25 160 31 L 142 56 H 38 Q 19 56 19 44 Q 19 25 38 25 Z" fill="url(#silver)"/>
+           <circle cx="44" cy="40" r="4.6" fill="#121222"/><circle cx="65" cy="40" r="4.6" fill="#121222"/><circle cx="86" cy="40" r="4.6" fill="#121222"/>
+           </g><g transform="translate(360 0) scale(-1 1)">
+           <path d="M 38 25 H 146 Q 153 25 160 31 L 105 104 Q 97 114 105 125 L 160 199 Q 153 205 146 205 H 38 Q 19 205 19 186 V 44 Q 19 25 38 25 Z" fill="none" stroke="url(#violet)" stroke-linejoin="round" stroke-linecap="round" stroke-width="13"/>
+           <path d="M 38 25 H 146 Q 153 25 160 31 L 142 56 H 38 Q 19 56 19 44 Q 19 25 38 25 Z" fill="url(#violet)"/>
+           <circle cx="44" cy="40" r="4.6" fill="#121222"/><circle cx="65" cy="40" r="4.6" fill="#121222"/><circle cx="86" cy="40" r="4.6" fill="#121222"/>
+           </g><path d="M 180 2 V 17 M 180 29 V 45 M 180 57 V 73 M 180 85 V 101 M 180 113 V 129 M 180 141 V 157 M 180 169 V 185 M 180 197 V 225" stroke="#D8D5EE" stroke-width="3" stroke-linecap="round" opacity="0.80"/></g></svg>
